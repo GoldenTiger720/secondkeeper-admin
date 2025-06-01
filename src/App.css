@@ -1,0 +1,215 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+/* Add this to your global CSS file or component styles */
+
+/* Streaming status indicators */
+.status-connected {
+  @apply bg-green-50 text-green-600 border-green-200;
+}
+
+.status-disconnected {
+  @apply bg-red-50 text-red-600 border-red-200;
+}
+
+.status-streaming {
+  @apply bg-orange-50 text-orange-600 border-orange-200;
+}
+
+/* Pulse animation for new alerts */
+.alert-badge-pulse {
+  animation: pulse-red 2s infinite;
+}
+
+@keyframes pulse-red {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* Stream viewer canvas */
+.stream-canvas {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Loading spinner for stream */
+.stream-loading {
+  @apply flex items-center justify-center h-64;
+}
+
+.stream-loading .spinner {
+  @apply animate-spin rounded-full h-8 w-8 border-b-2 border-primary;
+}
+
+/* Detection alert overlay */
+.detection-overlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(239, 68, 68, 0.9);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  animation: detection-pulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes detection-pulse {
+  from {
+    background: rgba(239, 68, 68, 0.9);
+  }
+  to {
+    background: rgba(239, 68, 68, 0.7);
+  }
+}
+
+/* Camera card hover effects */
+.camera-card:hover {
+  @apply shadow-lg transform scale-[1.02] transition-all duration-200;
+}
+
+/* Stream metrics display */
+.stream-metrics {
+  @apply bg-black/70 text-white p-2 rounded-md text-sm font-mono;
+}
+
+/* WebSocket connection status */
+.ws-status-connected {
+  @apply text-green-500;
+}
+
+.ws-status-connecting {
+  @apply text-yellow-500;
+}
+
+.ws-status-disconnected {
+  @apply text-red-500;
+}
+
+/* Fullscreen stream viewer */
+.stream-fullscreen {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9999;
+  background: black;
+}
+
+.stream-fullscreen canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Stream control buttons */
+.stream-controls {
+  @apply flex gap-2 mt-4;
+}
+
+.stream-controls button {
+  @apply transition-all duration-200;
+}
+
+.stream-controls button:hover:not(:disabled) {
+  @apply transform scale-105;
+}
+
+/* Detection log entries */
+.detection-entry {
+  @apply flex items-center justify-between p-2 bg-red-50 border border-red-200 rounded-md mb-2;
+  animation: detection-fade-in 0.3s ease-in-out;
+}
+
+@keyframes detection-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* System metrics cards */
+.metrics-card {
+  @apply bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200;
+}
+
+.metrics-value {
+  @apply text-2xl font-bold text-blue-700;
+}
+
+/* Active stream indicator */
+.active-stream-indicator {
+  @apply flex items-center gap-2 text-orange-600;
+}
+
+.active-stream-dot {
+  @apply w-2 h-2 bg-orange-500 rounded-full animate-pulse;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .stream-viewer-modal {
+    @apply max-w-[95vw] max-h-[95vh];
+  }
+
+  .camera-grid {
+    @apply grid-cols-1;
+  }
+
+  .stream-controls {
+    @apply flex-col;
+  }
+}
