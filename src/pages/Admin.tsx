@@ -1,12 +1,7 @@
-// src/pages/Admin.tsx - Updated with role-based navigation
-
-import { useState, useEffect } from "react";
-import { Routes, Route, NavLink, useNavigate } from "react-router-dom";
+import { useState, useEffect, Suspense, lazy } from "react";
+import { Routes, Route, NavLink } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import {
   Users,
   Camera,
@@ -16,24 +11,32 @@ import {
   Check,
   Database,
   Settings,
-  Shield,
-  Menu,
   UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import AdminUsers from "@/components/admin/AdminUsers";
-import AdminCameras from "@/components/admin/AdminCameras";
-import AdminSubscriptions from "@/components/admin/AdminSubscriptions";
-import AdminAlerts from "@/components/admin/AdminAlerts";
-import AdminWhatsApp from "@/components/admin/AdminWhatsApp";
-import AdminVerification from "@/components/admin/AdminVerification";
-import AdminTraining from "@/components/admin/AdminTraining";
-import AdminSettings from "@/components/admin/AdminSettings";
-import AddRole from "@/components/admin/AddRole";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminData } from "@/contexts/AdminDataContext";
+import { usePersistChanges } from "@/hooks/usePersistChanges";
 import apiClient from "@/lib/api/axiosConfig";
 import { toast } from "@/hooks/use-toast";
+
+// Lazy load components for better performance
+const AdminUsersOptimized = lazy(() => import("@/components/admin/AdminUsers"));
+const AdminCamerasOptimized = lazy(
+  () => import("@/components/admin/AdminCameras")
+);
+const AdminSubscriptions = lazy(
+  () => import("@/components/admin/AdminSubscriptions")
+);
+const AdminAlerts = lazy(() => import("@/components/admin/AdminAlerts"));
+const AdminWhatsApp = lazy(() => import("@/components/admin/AdminWhatsApp"));
+const AdminVerification = lazy(
+  () => import("@/components/admin/AdminVerification")
+);
+const AdminTraining = lazy(() => import("@/components/admin/AdminTraining"));
+const AdminSettings = lazy(() => import("@/components/admin/AdminSettings"));
+const AddRole = lazy(() => import("@/components/admin/AddRole"));
 
 interface UserPermissions {
   can_add_roles: boolean;
@@ -44,17 +47,35 @@ interface UserPermissions {
   is_reviewer: boolean;
 }
 
+const LoadingSpinner = () => (
+  <div className="flex justify-center items-center py-10">
+    <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
+  </div>
+);
+
 const Admin = () => {
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const [alertCount, setAlertCount] = useState(12);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const { isLoading: dataLoading, error } = useAdminData();
+  const { syncToBackend } = usePersistChanges();
   const [permissions, setPermissions] = useState<UserPermissions | null>(null);
   const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
 
+  // Calculate alert count from the cached data
+  // const alertCount =
+  //   alerts?.filter(
+  //     (alert) => alert.status === "new" || alert.status === "pending"
+  //   )?.length || 0;
+
   useEffect(() => {
     fetchUserPermissions();
-  }, []);
+
+    // Auto-sync changes periodically
+    const syncInterval = setInterval(() => {
+      syncToBackend();
+    }, 60000); // Sync every minute
+
+    return () => clearInterval(syncInterval);
+  }, [syncToBackend]);
 
   const fetchUserPermissions = async () => {
     try {
@@ -120,13 +141,13 @@ const Admin = () => {
       );
     }
 
-    // Items available to all authenticated users (admin, manager, reviewer)
+    // Items available to all authenticated users
     baseItems.push(
       {
         path: "/alerts",
         label: "Alerts",
         icon: <Bell className="mr-2 h-5 w-5" />,
-        badge: alertCount > 0 ? alertCount : null,
+        // badge: alertCount > 0 ? alertCount : null,
       },
       {
         path: "/whatsapp",
@@ -160,7 +181,6 @@ const Admin = () => {
           <NavLink
             key={item.path}
             to={item.path}
-            onClick={() => setMobileMenuOpen(false)}
             className={({ isActive }) =>
               cn(
                 "flex items-center justify-between px-3 py-2 rounded-md text-sm transition-colors",
@@ -185,11 +205,28 @@ const Admin = () => {
     );
   };
 
-  if (isLoadingPermissions) {
+  if (isLoadingPermissions || dataLoading) {
+    return (
+      <DashboardLayout>
+        <LoadingSpinner />
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
     return (
       <DashboardLayout>
         <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-4">Error Loading Data</h2>
+            <p className="text-muted-foreground mb-4">{error}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </DashboardLayout>
     );
@@ -224,45 +261,50 @@ const Admin = () => {
           {/* Main content */}
           <Card className="col-span-12 lg:col-span-9">
             <CardContent className="p-4 sm:p-6">
-              <Routes>
-                {/* Default route based on role */}
-                <Route
-                  path="/"
-                  element={
-                    permissions.can_manage_users ? (
-                      <AdminUsers />
-                    ) : (
-                      <AdminAlerts />
-                    )
-                  }
-                />
+              <Suspense fallback={<LoadingSpinner />}>
+                <Routes>
+                  {/* Default route based on role */}
+                  <Route
+                    path="/"
+                    element={
+                      permissions.can_manage_users ? (
+                        <AdminUsersOptimized />
+                      ) : (
+                        <AdminAlerts />
+                      )
+                    }
+                  />
 
-                {/* Routes available to managers and admins */}
-                {permissions.can_manage_users && (
-                  <>
-                    <Route path="/users" element={<AdminUsers />} />
-                    <Route path="/cameras" element={<AdminCameras />} />
-                  </>
-                )}
+                  {/* Routes available to managers and admins */}
+                  {permissions.can_manage_users && (
+                    <>
+                      <Route path="/users" element={<AdminUsersOptimized />} />
+                      <Route
+                        path="/cameras"
+                        element={<AdminCamerasOptimized />}
+                      />
+                    </>
+                  )}
 
-                {/* Admin-only routes */}
-                {permissions.is_admin && (
-                  <>
-                    <Route path="/add-role" element={<AddRole />} />
-                    <Route
-                      path="/subscriptions"
-                      element={<AdminSubscriptions />}
-                    />
-                    <Route path="/settings" element={<AdminSettings />} />
-                  </>
-                )}
+                  {/* Admin-only routes */}
+                  {permissions.is_admin && (
+                    <>
+                      <Route path="/add-role" element={<AddRole />} />
+                      <Route
+                        path="/subscriptions"
+                        element={<AdminSubscriptions />}
+                      />
+                      <Route path="/settings" element={<AdminSettings />} />
+                    </>
+                  )}
 
-                {/* Routes available to all authenticated users */}
-                <Route path="/alerts" element={<AdminAlerts />} />
-                <Route path="/whatsapp" element={<AdminWhatsApp />} />
-                <Route path="/verification" element={<AdminVerification />} />
-                <Route path="/training" element={<AdminTraining />} />
-              </Routes>
+                  {/* Routes available to all authenticated users */}
+                  <Route path="/alerts" element={<AdminAlerts />} />
+                  <Route path="/whatsapp" element={<AdminWhatsApp />} />
+                  <Route path="/verification" element={<AdminVerification />} />
+                  <Route path="/training" element={<AdminTraining />} />
+                </Routes>
+              </Suspense>
             </CardContent>
           </Card>
         </div>

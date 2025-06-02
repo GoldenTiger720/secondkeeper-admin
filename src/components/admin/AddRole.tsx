@@ -1,6 +1,5 @@
-// src/components/admin/AddRole.tsx
-
-import { useState, useEffect } from "react";
+// src/components/admin/AddRoleOptimized.tsx
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -30,6 +29,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Plus, Search, Eye, EyeOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { useAdminData } from "@/contexts/AdminDataContext";
+import { useUsers } from "@/hooks/useUsers";
+import { useQuery } from "@tanstack/react-query";
 import apiClient from "@/lib/api/axiosConfig";
 
 interface User {
@@ -63,9 +65,8 @@ interface AddRoleFormData {
 }
 
 const AddRole = () => {
-  const [users, setUsers] = useState<User[]>([]);
-  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const { users, isLoading: usersLoading } = useAdminData();
+  const { addUser } = useUsers();
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -78,51 +79,41 @@ const AddRole = () => {
     confirm_password: "",
   });
 
+  // Fetch user permissions with React Query
+  const {
+    data: permissions,
+    isLoading: permissionsLoading,
+    error: permissionsError,
+  } = useQuery({
+    queryKey: ["admin", "permissions"],
+    queryFn: async (): Promise<UserPermissions> => {
+      const response = await apiClient.get("/admin/users/user_permissions/");
+      if (response.data && response.data.success) {
+        return response.data.data;
+      }
+      throw new Error("Failed to fetch permissions");
+    },
+    staleTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 15 * 60 * 1000, // 15 minutes
+  });
+
   const roleOptions = [
     { value: "manager", label: "Manager" },
     { value: "reviewer", label: "Reviewer" },
     { value: "user", label: "User" },
   ];
 
-  useEffect(() => {
-    fetchUserPermissions();
-    fetchUsers();
-  }, []);
+  // Memoized filtered users to avoid unnecessary re-renders
+  const filteredUsers = useMemo(() => {
+    if (!users) return [];
 
-  const fetchUserPermissions = async () => {
-    try {
-      const response = await apiClient.get("/admin/users/user_permissions/");
-      if (response.data && response.data.success) {
-        setPermissions(response.data.data);
-      }
-    } catch (error) {
-      console.error("Error fetching user permissions:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load user permissions. Please try again.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      setIsLoading(true);
-      const response = await apiClient.get("/admin/users/");
-      if (response.data && response.data.success) {
-        setUsers(response.data.data.results || response.data.data);
-      }
-    } catch (error) {
-      console.error("Error fetching users:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load users. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    return users.filter(
+      (user) =>
+        user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        user.role.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [users, searchQuery]);
 
   const handleInputChange = (field: keyof AddRoleFormData, value: string) => {
     setFormData((prev) => ({
@@ -194,8 +185,6 @@ const AddRole = () => {
     if (!validateForm()) return;
 
     try {
-      setIsLoading(true);
-
       const payload = {
         full_name: formData.full_name,
         email: formData.email,
@@ -203,51 +192,22 @@ const AddRole = () => {
         password: formData.password,
       };
 
-      const response = await apiClient.post("/admin/users/add_role/", payload);
+      await addUser.mutateAsync(payload);
 
-      if (response.data && response.data.success) {
-        toast({
-          title: "Success",
-          description: response.data.message,
-        });
-
-        // Reset form and close modal
-        setFormData({
-          full_name: "",
-          email: "",
-          role: "",
-          password: "",
-          confirm_password: "",
-        });
-        setIsModalOpen(false);
-
-        // Refresh users list
-        fetchUsers();
-      }
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (error: any) {
-      console.error("Error adding role:", error);
-      const errorMessage =
-        error.response?.data?.message ||
-        error.response?.data?.errors?.[0] ||
-        "Failed to add role. Please try again.";
-
-      toast({
-        title: "Error",
-        description: errorMessage,
-        variant: "destructive",
+      // Reset form and close modal
+      setFormData({
+        full_name: "",
+        email: "",
+        role: "",
+        password: "",
+        confirm_password: "",
       });
-    } finally {
-      setIsLoading(false);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error("Error adding role:", error);
+      // Error is already handled in the mutation
     }
   };
-
-  const filteredUsers = users.filter(
-    (user) =>
-      user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      user.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
@@ -264,7 +224,8 @@ const AddRole = () => {
     }
   };
 
-  if (!permissions) {
+  // Loading state
+  if (usersLoading || permissionsLoading) {
     return (
       <div className="flex justify-center items-center py-10">
         <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
@@ -272,142 +233,214 @@ const AddRole = () => {
     );
   }
 
+  // Error state
+  if (permissionsError) {
+    return (
+      <div className="text-center py-10">
+        <h2 className="text-xl font-bold mb-4">Error Loading Permissions</h2>
+        <p className="text-muted-foreground mb-4">
+          {permissionsError.message || "Failed to load user permissions"}
+        </p>
+        <Button onClick={() => window.location.reload()}>Retry</Button>
+      </div>
+    );
+  }
+
+  // Access denied state
+  if (!permissions?.can_add_roles) {
+    return (
+      <div className="text-center py-10">
+        <h2 className="text-xl font-bold mb-4">Access Denied</h2>
+        <p className="text-muted-foreground">
+          You don't have permission to add roles.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 w-full">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{users?.length || 0}</div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {users?.filter((u) => u.status === "active").length || 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Managers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">
+              {users?.filter((u) => u.role === "manager").length || 0}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Reviewers</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-purple-600">
+              {users?.filter((u) => u.role === "reviewer").length || 0}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-xl md:text-2xl font-bold tracking-tight">
-          Role Management
+          Role Management ({filteredUsers.length} users)
         </h2>
 
-        {permissions.can_add_roles && (
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <DialogTrigger asChild>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Add Role
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[500px]">
-              <DialogHeader>
-                <DialogTitle>Add New Role</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="full_name">Full Name</Label>
-                  <Input
-                    id="full_name"
-                    value={formData.full_name}
-                    onChange={(e) =>
-                      handleInputChange("full_name", e.target.value)
-                    }
-                    placeholder="Enter full name"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    placeholder="Enter email address"
-                  />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="role">Role</Label>
-                  <Select
-                    value={formData.role}
-                    onValueChange={(value) => handleInputChange("role", value)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a role" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {roleOptions.map((role) => (
-                        <SelectItem key={role.value} value={role.value}>
-                          {role.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      value={formData.password}
-                      onChange={(e) =>
-                        handleInputChange("password", e.target.value)
-                      }
-                      placeholder="Enter password"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-10 px-3"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="confirm_password">Confirm Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirm_password"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={formData.confirm_password}
-                      onChange={(e) =>
-                        handleInputChange("confirm_password", e.target.value)
-                      }
-                      placeholder="Confirm password"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-10 px-3"
-                      onClick={() =>
-                        setShowConfirmPassword(!showConfirmPassword)
-                      }
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4" />
-                      ) : (
-                        <Eye className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Role
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Add New Role</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="full_name">Full Name</Label>
+                <Input
+                  id="full_name"
+                  value={formData.full_name}
+                  onChange={(e) =>
+                    handleInputChange("full_name", e.target.value)
+                  }
+                  placeholder="Enter full name"
+                  disabled={addUser.isPending}
+                />
               </div>
 
-              <div className="flex justify-end gap-3">
-                <Button
-                  variant="outline"
-                  onClick={() => setIsModalOpen(false)}
-                  disabled={isLoading}
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  placeholder="Enter email address"
+                  disabled={addUser.isPending}
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  value={formData.role}
+                  onValueChange={(value) => handleInputChange("role", value)}
+                  disabled={addUser.isPending}
                 >
-                  Cancel
-                </Button>
-                <Button onClick={handleSave} disabled={isLoading}>
-                  {isLoading ? "Saving..." : "Save"}
-                </Button>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roleOptions.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </DialogContent>
-          </Dialog>
-        )}
+
+              <div className="grid gap-2">
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={(e) =>
+                      handleInputChange("password", e.target.value)
+                    }
+                    placeholder="Enter password"
+                    disabled={addUser.isPending}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-10 px-3"
+                    onClick={() => setShowPassword(!showPassword)}
+                    disabled={addUser.isPending}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="confirm_password">Confirm Password</Label>
+                <div className="relative">
+                  <Input
+                    id="confirm_password"
+                    type={showConfirmPassword ? "text" : "password"}
+                    value={formData.confirm_password}
+                    onChange={(e) =>
+                      handleInputChange("confirm_password", e.target.value)
+                    }
+                    placeholder="Confirm password"
+                    disabled={addUser.isPending}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="absolute right-0 top-0 h-10 px-3"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    disabled={addUser.isPending}
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsModalOpen(false)}
+                disabled={addUser.isPending}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleSave} disabled={addUser.isPending}>
+                {addUser.isPending ? "Saving..." : "Save"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="flex items-center space-x-2">
@@ -422,70 +455,64 @@ const AddRole = () => {
         </div>
       </div>
 
-      {isLoading ? (
-        <div className="flex justify-center items-center py-10">
-          <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
-        </div>
-      ) : (
-        <div>
-          <div className="text-lg font-semibold mb-4">Users & Roles</div>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Role</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-center">Cameras</TableHead>
-                  <TableHead className="text-center">Alerts</TableHead>
-                  <TableHead>Joined</TableHead>
+      <div>
+        <div className="text-lg font-semibold mb-4">Users & Roles</div>
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-center">Cameras</TableHead>
+                <TableHead className="text-center">Alerts</TableHead>
+                <TableHead>Joined</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filteredUsers.map((user) => (
+                <TableRow key={user.id}>
+                  <TableCell className="font-medium">
+                    {user.full_name}
+                  </TableCell>
+                  <TableCell>{user.email}</TableCell>
+                  <TableCell>
+                    <Badge variant={getRoleBadgeVariant(user.role)}>
+                      {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        user.status === "active" ? "outline" : "destructive"
+                      }
+                    >
+                      {user.status === "active" ? "Active" : "Blocked"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {user.cameras_count}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {user.alerts_count}
+                  </TableCell>
+                  <TableCell>
+                    {new Date(user.date_joined).toLocaleDateString()}
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">
-                      {user.full_name}
-                    </TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge variant={getRoleBadgeVariant(user.role)}>
-                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant={
-                          user.status === "active" ? "outline" : "destructive"
-                        }
-                      >
-                        {user.status === "active" ? "Active" : "Blocked"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {user.cameras_count}
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {user.alerts_count}
-                    </TableCell>
-                    <TableCell>
-                      {new Date(user.date_joined).toLocaleDateString()}
-                    </TableCell>
-                  </TableRow>
-                ))}
-                {filteredUsers.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
-                      No users found.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
+              ))}
+              {filteredUsers.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="h-24 text-center">
+                    No users found matching your search.
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
         </div>
-      )}
+      </div>
     </div>
   );
 };

@@ -1,5 +1,3 @@
-import { Link } from "react-router-dom";
-import { cn } from "@/lib/utils";
 import { ThemeToggle } from "./ThemeToggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,76 +8,54 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Bell,
-  ChevronDown,
-  LogOut,
-  Menu,
-  Settings,
-  User,
-  Shield,
-} from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, Settings, User } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Logo } from "./Logo";
-import { notificationsService } from "@/lib/api/notificationsService";
+import { SyncStatus } from "@/components/ui/SyncStatus";
 import { authService } from "@/lib/api/authService";
 import { useAuth } from "@/hooks/useAuth";
+import { useAdminData } from "@/contexts/AdminDataContext";
 
 export function MainNav({
   className,
   ...props
 }: React.HTMLAttributes<HTMLElement>) {
-  // State for notifications
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [notificationCount, setNotificationCount] = useState(0);
+  // const { alerts } = useAdminData();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { user } = useAuth();
   const [username, setUsername] = useState<string>("");
 
-  // Helper to check if the current path matches the link
-  const isActive = (path: string) => {
-    return location.pathname === path;
-  };
+  // Calculate notification count from cached data
+  // const notificationCount =
+  //   alerts?.filter(
+  //     (alert) => alert.status === "new" || alert.status === "pending"
+  //   )?.length || 0;
 
-  // Fetch notifications on component mount
+  // Recent notifications from cached data
+  // const recentNotifications =
+  //   alerts
+  //     ?.filter((alert) => alert.status === "new" || alert.status === "pending")
+  //     ?.slice(0, 3)
+  //     ?.map((alert) => ({
+  //       id: alert.id,
+  //       title: `${alert.type} Alert`,
+  //       message: `${alert.type} detected at ${alert.camera}`,
+  //     })) || [];
+
   useEffect(() => {
-    // const fetchNotifications = async () => {
-    //   try {
-    //     if (authService.isAuthenticated()) {
-    //       const unreadNotifications =
-    //         await notificationsService.getUnreadNotifications();
-    //       setNotifications(unreadNotifications.slice(0, 3));
-    //       setNotificationCount(unreadNotifications.length);
-    //     }
-    //   } catch (error) {
-    //     console.error("Failed to fetch notifications:", error);
-    //   }
-    // };
-
     if (user) {
       setUsername(user.full_name || user.username);
     }
-    // fetchNotifications();
-
-    // Fetch notifications periodically
-    // const intervalId = setInterval(fetchNotifications, 30000); // Every 30 seconds
-
-    // return () => clearInterval(intervalId);
   }, [user]);
 
-  const handleMarkAllAsRead = async () => {
-    try {
-      await notificationsService.markAllAsRead();
-      setNotificationCount(0);
-      setNotifications([]);
-    } catch (error) {
-      console.error("Failed to mark notifications as read:", error);
-    }
+  const handleMarkAllAsRead = () => {
+    // In a real implementation, you would update the alert status
+    // For now, we'll just show a placeholder action
+    console.log("Mark all notifications as read");
   };
 
   return (
@@ -88,8 +64,6 @@ export function MainNav({
         <div className="mr-4 flex items-center space-x-2">
           <Logo />
         </div>
-
-        {/* Desktop Navigation */}
 
         {/* Mobile Navigation */}
         <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
@@ -107,26 +81,30 @@ export function MainNav({
         </Sheet>
 
         <div className="ml-auto flex items-center space-x-2">
+          {/* Sync Status Indicator */}
+          <SyncStatus />
+
+          {/* Notifications Dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon" className="relative">
                 <Bell className="h-5 w-5" />
-                {notificationCount > 0 && (
+                {/* {notificationCount > 0 && (
                   <Badge
                     variant="destructive"
                     className="absolute -right-1 -top-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs"
                   >
                     {notificationCount}
                   </Badge>
-                )}
+                )} */}
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-80">
               <DropdownMenuLabel>Notifications</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <div className="max-h-80 overflow-auto">
-                {notifications.length > 0 ? (
-                  notifications.map((notification) => (
+                {/* {recentNotifications.length > 0 ? (
+                  recentNotifications.map((notification) => (
                     <DropdownMenuItem
                       key={notification.id}
                       className="flex flex-col items-start gap-1 p-3"
@@ -141,7 +119,7 @@ export function MainNav({
                   <div className="p-3 text-center text-muted-foreground">
                     No new notifications
                   </div>
-                )}
+                )} */}
               </div>
               <DropdownMenuSeparator />
               <DropdownMenuItem
@@ -155,6 +133,7 @@ export function MainNav({
 
           <ThemeToggle />
 
+          {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
