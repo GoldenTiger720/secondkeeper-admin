@@ -56,7 +56,7 @@ export default function Login() {
         password: data.password,
       });
       toast({
-        title: "Welcome back!",
+        title: "Welcome Admin panel!",
         description: "You've successfully logged in.",
       });
       navigate("/");
@@ -78,7 +78,7 @@ export default function Login() {
         <div className="mb-8 text-center">
           <Logo className="mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-            Welcome back
+            Welcome Admin Panel!
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
             Sign in to access your SafeGuard dashboard
@@ -187,17 +187,6 @@ export default function Login() {
               </form>
             </Form>
           </CardContent>
-          <CardFooter className="flex justify-center">
-            <div className="text-sm text-center">
-              Don't have an account?{" "}
-              <Link
-                to="/signup"
-                className="text-primary font-medium hover:underline"
-              >
-                Sign up
-              </Link>
-            </div>
-          </CardFooter>
         </Card>
       </div>
     </div>

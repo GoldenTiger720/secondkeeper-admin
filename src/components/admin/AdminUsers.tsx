@@ -153,10 +153,10 @@ const AdminUsers = () => {
         </h2>
         <Dialog>
           <DialogTrigger asChild>
-            <Button>
+            {/* <Button>
               <Plus className="mr-2 h-4 w-4" />
               Add User
-            </Button>
+            </Button> */}
           </DialogTrigger>
           <DialogContent className="sm:max-w-[500px]">
             <DialogHeader>
@@ -174,10 +174,6 @@ const AdminUsers = () => {
               <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
                 <label className="sm:text-right">Phone</label>
                 <Input type="tel" className="sm:col-span-3" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-4 items-center gap-4">
-                <label className="sm:text-right">Address</label>
-                <Input className="sm:col-span-3" />
               </div>
             </div>
             <div className="flex justify-end gap-3">
