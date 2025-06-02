@@ -4,7 +4,7 @@ import { toast } from "@/hooks/use-toast";
 interface SyncOperation {
   id: string;
   type: "users" | "cameras" | "alerts";
-  action: "create" | "update" | "delete";
+  action: "create" | "update" | "update_status" | "delete";
   data: any;
   timestamp: number;
   retryCount: number;
@@ -126,15 +126,22 @@ class DataSyncService {
       case "create":
         await apiClient.post("/admin/users/add_role/", data);
         break;
-      case "update":
+      case "update_status":
         if (data.userId && data.action) {
           await apiClient.post(`/admin/users/${data.userId}/update_status/`, {
             action: data.action,
           });
         }
         break;
+      case "update":
+        if (data.userId && data.userData) {
+          await apiClient.put(`/admin/users/${data.userId}/`, data.userData);
+        }
+        break;
       case "delete":
-        await apiClient.delete(`/admin/users/${data.userId}/`);
+        if (data.userId) {
+          await apiClient.delete(`/admin/users/${data.userId}/`);
+        }
         break;
       default:
         throw new Error(`Unknown user action: ${action}`);

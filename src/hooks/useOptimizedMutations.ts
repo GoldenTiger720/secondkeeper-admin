@@ -15,7 +15,7 @@ export const useOptimizedUsers = () => {
       // Add to sync queue instead of immediate API call
       dataSyncService.addToQueue({
         type: "users",
-        action: "update",
+        action: "update_status",
         data: { userId, action },
       });
 
@@ -69,7 +69,61 @@ export const useOptimizedUsers = () => {
     onSuccessMessage: "User added (syncing in background)",
   });
 
-  return { updateUserStatus, addUser };
+  // Edit User with offline sync
+  const editUser = useOptimisticMutation({
+    mutationFn: async ({
+      userId,
+      userData,
+    }: {
+      userId: string;
+      userData: any;
+    }) => {
+      dataSyncService.addToQueue({
+        type: "users",
+        action: "update",
+        data: { userId, userData },
+      });
+
+      return { success: true };
+    },
+    queryKey: QUERY_KEYS.users,
+    onOptimisticUpdate: (oldData, { userId, userData }) => {
+      if (!oldData) return oldData;
+
+      return oldData.map((user: any) => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            ...userData,
+            updated_at: new Date().toISOString(),
+          };
+        }
+        return user;
+      });
+    },
+    onSuccessMessage: "User updated (syncing in background)",
+  });
+
+  // Delete User with offline sync
+  const deleteUser = useOptimisticMutation({
+    mutationFn: async ({ userId }: { userId: string }) => {
+      dataSyncService.addToQueue({
+        type: "users",
+        action: "delete",
+        data: { userId },
+      });
+
+      return { success: true };
+    },
+    queryKey: QUERY_KEYS.users,
+    onOptimisticUpdate: (oldData, { userId }) => {
+      if (!oldData) return oldData;
+      return oldData.filter((user: any) => user.id !== userId);
+    },
+    onSuccessMessage: "User deleted (syncing in background)",
+  });
+
+  return { updateUserStatus, addUser, editUser, deleteUser };
 };
 
 export const useOptimizedCameras = () => {

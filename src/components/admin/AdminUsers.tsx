@@ -18,6 +18,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Search, Plus, Eye, EyeOff } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -36,6 +46,7 @@ interface User {
   full_name: string;
   email: string;
   phone_number: string;
+  role: string;
   is_active: boolean;
   status: "active" | "blocked";
   cameras_count: number;
@@ -51,17 +62,26 @@ interface AddUserFormData {
   phone_number: string;
 }
 
+interface EditUserFormData {
+  full_name: string;
+  email: string;
+  role: string;
+  phone_number: string;
+}
+
 const AdminUsers = () => {
   const { users, isLoading } = useAdminData();
-  const { updateUserStatus, addUser } = useUsers();
+  const { updateUserStatus, addUser, editUser, deleteUser } = useUsers();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedActions, setSelectedActions] = useState<
     Record<string, string>
   >({});
+
+  // Add User Modal States
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [formData, setFormData] = useState<AddUserFormData>({
+  const [addFormData, setAddFormData] = useState<AddUserFormData>({
     full_name: "",
     email: "",
     role: "",
@@ -69,6 +89,20 @@ const AdminUsers = () => {
     confirm_password: "",
     phone_number: "",
   });
+
+  // Edit User Modal States
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editFormData, setEditFormData] = useState<EditUserFormData>({
+    full_name: "",
+    email: "",
+    role: "",
+    phone_number: "",
+  });
+
+  // Delete User Modal States
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   // Memoized filtered users to avoid unnecessary re-renders
   const filteredUsers = useMemo(() => {
@@ -78,7 +112,6 @@ const AdminUsers = () => {
       (user) =>
         user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         user.email.toLowerCase().includes(searchQuery.toLowerCase())
-      // user.phone_number.includes(searchQuery)
     );
   }, [users, searchQuery]);
 
@@ -89,15 +122,19 @@ const AdminUsers = () => {
     { value: "user", label: "User" },
   ];
 
-  const handleInputChange = (field: keyof AddUserFormData, value: string) => {
-    setFormData((prev) => ({
+  // Add User Form Handlers
+  const handleAddInputChange = (
+    field: keyof AddUserFormData,
+    value: string
+  ) => {
+    setAddFormData((prev) => ({
       ...prev,
       [field]: value,
     }));
   };
 
-  const validateForm = (): boolean => {
-    if (!formData.full_name.trim()) {
+  const validateAddForm = (): boolean => {
+    if (!addFormData.full_name.trim()) {
       toast({
         title: "Validation Error",
         description: "Full name is required.",
@@ -106,7 +143,7 @@ const AdminUsers = () => {
       return false;
     }
 
-    if (!formData.phone_number.trim()) {
+    if (!addFormData.phone_number.trim()) {
       toast({
         title: "Validation Error",
         description: "Phone is required.",
@@ -115,7 +152,7 @@ const AdminUsers = () => {
       return false;
     }
 
-    if (!/^\d+$/.test(formData.phone_number.trim())) {
+    if (!/^\d+$/.test(addFormData.phone_number.trim())) {
       toast({
         title: "Validation Error",
         description: "Phone number must contain only numbers.",
@@ -124,7 +161,7 @@ const AdminUsers = () => {
       return false;
     }
 
-    if (!formData.email.trim()) {
+    if (!addFormData.email.trim()) {
       toast({
         title: "Validation Error",
         description: "Email is required.",
@@ -134,7 +171,7 @@ const AdminUsers = () => {
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
+    if (!emailRegex.test(addFormData.email)) {
       toast({
         title: "Validation Error",
         description: "Please enter a valid email address.",
@@ -143,7 +180,7 @@ const AdminUsers = () => {
       return false;
     }
 
-    if (!formData.role) {
+    if (!addFormData.role) {
       toast({
         title: "Validation Error",
         description: "Please select a role.",
@@ -152,7 +189,7 @@ const AdminUsers = () => {
       return false;
     }
 
-    if (formData.password.length < 8) {
+    if (addFormData.password.length < 8) {
       toast({
         title: "Validation Error",
         description: "Password must be at least 8 characters long.",
@@ -161,7 +198,7 @@ const AdminUsers = () => {
       return false;
     }
 
-    if (formData.password !== formData.confirm_password) {
+    if (addFormData.password !== addFormData.confirm_password) {
       toast({
         title: "Validation Error",
         description: "Passwords do not match.",
@@ -174,21 +211,21 @@ const AdminUsers = () => {
   };
 
   const handleAddUser = async () => {
-    if (!validateForm()) return;
+    if (!validateAddForm()) return;
 
     try {
       const userData = {
-        full_name: formData.full_name,
-        email: formData.email,
-        role: formData.role,
-        password: formData.password,
-        phone_number: formData.phone_number,
+        full_name: addFormData.full_name,
+        email: addFormData.email,
+        role: addFormData.role,
+        password: addFormData.password,
+        phone_number: addFormData.phone_number,
       };
 
       await addUser.mutateAsync(userData);
 
       // Reset form and close dialog
-      setFormData({
+      setAddFormData({
         full_name: "",
         email: "",
         role: "",
@@ -199,11 +236,129 @@ const AdminUsers = () => {
       setIsAddDialogOpen(false);
     } catch (error) {
       console.error("Error adding user:", error);
-      // Error is already handled in the mutation
     }
   };
 
+  // Edit User Form Handlers
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditFormData({
+      full_name: user.full_name,
+      email: user.email,
+      role: user.role,
+      phone_number: user.phone_number,
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const handleEditInputChange = (
+    field: keyof EditUserFormData,
+    value: string
+  ) => {
+    setEditFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
+
+  const validateEditForm = (): boolean => {
+    if (!editFormData.full_name.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Full name is required.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!editFormData.phone_number.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Phone is required.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!/^\d+$/.test(editFormData.phone_number.trim())) {
+      toast({
+        title: "Validation Error",
+        description: "Phone number must contain only numbers.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!editFormData.email.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Email is required.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(editFormData.email)) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a valid email address.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!editFormData.role) {
+      toast({
+        title: "Validation Error",
+        description: "Please select a role.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleUpdateUser = async () => {
+    if (!validateEditForm() || !editingUser) return;
+
+    try {
+      await editUser.mutateAsync({
+        userId: editingUser.id,
+        userData: editFormData,
+      });
+
+      setIsEditDialogOpen(false);
+      setEditingUser(null);
+    } catch (error) {
+      console.error("Error updating user:", error);
+    }
+  };
+
+  // Delete User Handlers
+  const handleDeleteUser = (user: User) => {
+    setUserToDelete(user);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    try {
+      await deleteUser.mutateAsync({ userId: userToDelete.id });
+      setIsDeleteDialogOpen(false);
+      setUserToDelete(null);
+    } catch (error) {
+      console.error("Error deleting user:", error);
+    }
+  };
+
+  // Action Handler
   const handleUserAction = async (userId: string, action: string) => {
+    const user = users?.find((u) => u.id === userId);
+    if (!user) return;
+
     // Update local state immediately for better UX
     setSelectedActions((prev) => ({
       ...prev,
@@ -211,12 +366,15 @@ const AdminUsers = () => {
     }));
 
     try {
-      if (action === "Block" || action === "Unblock" || action === "Delete") {
+      if (action === "Edit") {
+        handleEditUser(user);
+      } else if (action === "Delete") {
+        handleDeleteUser(user);
+      } else if (action === "Block" || action === "Unblock") {
         await updateUserStatus.mutateAsync({ userId, action } as any);
       }
     } catch (error) {
       console.error(`Error performing ${action}:`, error);
-      // Error is already handled in the mutation
     } finally {
       // Reset the dropdown
       setSelectedActions((prev) => ({
@@ -240,6 +398,8 @@ const AdminUsers = () => {
         <h2 className="text-xl md:text-2xl font-bold tracking-tight">
           User Management ({filteredUsers.length})
         </h2>
+
+        {/* Add User Dialog */}
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -253,45 +413,47 @@ const AdminUsers = () => {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="full_name">Full Name</Label>
+                <Label htmlFor="add_full_name">Full Name</Label>
                 <Input
-                  id="full_name"
-                  value={formData.full_name}
+                  id="add_full_name"
+                  value={addFormData.full_name}
                   onChange={(e) =>
-                    handleInputChange("full_name", e.target.value)
+                    handleAddInputChange("full_name", e.target.value)
                   }
                   placeholder="Enter full name"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="add_email">Email</Label>
                 <Input
-                  id="email"
+                  id="add_email"
                   type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
+                  value={addFormData.email}
+                  onChange={(e) =>
+                    handleAddInputChange("email", e.target.value)
+                  }
                   placeholder="Enter email address"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="phone_number">Phone Number</Label>
+                <Label htmlFor="add_phone_number">Phone Number</Label>
                 <Input
-                  id="phone_number"
-                  value={formData.phone_number}
+                  id="add_phone_number"
+                  value={addFormData.phone_number}
                   onChange={(e) =>
-                    handleInputChange("phone_number", e.target.value)
+                    handleAddInputChange("phone_number", e.target.value)
                   }
                   placeholder="Enter phone number"
                 />
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="add_role">Role</Label>
                 <Select
-                  value={formData.role}
-                  onValueChange={(value) => handleInputChange("role", value)}
+                  value={addFormData.role}
+                  onValueChange={(value) => handleAddInputChange("role", value)}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a role" />
@@ -307,14 +469,14 @@ const AdminUsers = () => {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="add_password">Password</Label>
                 <div className="relative">
                   <Input
-                    id="password"
+                    id="add_password"
                     type={showPassword ? "text" : "password"}
-                    value={formData.password}
+                    value={addFormData.password}
                     onChange={(e) =>
-                      handleInputChange("password", e.target.value)
+                      handleAddInputChange("password", e.target.value)
                     }
                     placeholder="Enter password"
                   />
@@ -335,14 +497,14 @@ const AdminUsers = () => {
               </div>
 
               <div className="grid gap-2">
-                <Label htmlFor="confirm_password">Confirm Password</Label>
+                <Label htmlFor="add_confirm_password">Confirm Password</Label>
                 <div className="relative">
                   <Input
-                    id="confirm_password"
+                    id="add_confirm_password"
                     type={showConfirmPassword ? "text" : "password"}
-                    value={formData.confirm_password}
+                    value={addFormData.confirm_password}
                     onChange={(e) =>
-                      handleInputChange("confirm_password", e.target.value)
+                      handleAddInputChange("confirm_password", e.target.value)
                     }
                     placeholder="Confirm password"
                   />
@@ -399,6 +561,7 @@ const AdminUsers = () => {
               <TableHead>Name</TableHead>
               <TableHead>Email</TableHead>
               <TableHead>Phone</TableHead>
+              <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="text-center">Cameras</TableHead>
               <TableHead className="text-center">Alerts</TableHead>
@@ -411,6 +574,11 @@ const AdminUsers = () => {
                 <TableCell>{user.full_name}</TableCell>
                 <TableCell>{user.email}</TableCell>
                 <TableCell>{user.phone_number}</TableCell>
+                <TableCell>
+                  <Badge variant="outline">
+                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                  </Badge>
+                </TableCell>
                 <TableCell>
                   <Badge
                     variant={
@@ -430,7 +598,11 @@ const AdminUsers = () => {
                   <Select
                     value={selectedActions[user.id] || ""}
                     onValueChange={(value) => handleUserAction(user.id, value)}
-                    disabled={updateUserStatus.isPending}
+                    disabled={
+                      updateUserStatus.isPending ||
+                      editUser.isPending ||
+                      deleteUser.isPending
+                    }
                   >
                     <SelectTrigger className="ml-auto w-[120px]">
                       <SelectValue placeholder="Actions" />
@@ -487,6 +659,13 @@ const AdminUsers = () => {
                 <div className="text-muted-foreground">Phone:</div>
                 <div>{user.phone_number}</div>
 
+                <div className="text-muted-foreground">Role:</div>
+                <div>
+                  <Badge variant="outline">
+                    {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                  </Badge>
+                </div>
+
                 <div className="text-muted-foreground">Cameras:</div>
                 <div>{user.cameras_count}</div>
 
@@ -498,7 +677,11 @@ const AdminUsers = () => {
                 <Select
                   value={selectedActions[user.id] || ""}
                   onValueChange={(value) => handleUserAction(user.id, value)}
-                  disabled={updateUserStatus.isPending}
+                  disabled={
+                    updateUserStatus.isPending ||
+                    editUser.isPending ||
+                    deleteUser.isPending
+                  }
                 >
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Actions" />
@@ -527,6 +710,113 @@ const AdminUsers = () => {
           </Card>
         ))}
       </div>
+
+      {/* Edit User Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit_full_name">Full Name</Label>
+              <Input
+                id="edit_full_name"
+                value={editFormData.full_name}
+                onChange={(e) =>
+                  handleEditInputChange("full_name", e.target.value)
+                }
+                placeholder="Enter full name"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit_email">Email</Label>
+              <Input
+                id="edit_email"
+                type="email"
+                value={editFormData.email}
+                onChange={(e) => handleEditInputChange("email", e.target.value)}
+                placeholder="Enter email address"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit_phone_number">Phone Number</Label>
+              <Input
+                id="edit_phone_number"
+                value={editFormData.phone_number}
+                onChange={(e) =>
+                  handleEditInputChange("phone_number", e.target.value)
+                }
+                placeholder="Enter phone number"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="edit_role">Role</Label>
+              <Select
+                value={editFormData.role}
+                onValueChange={(value) => handleEditInputChange("role", value)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="outline"
+              onClick={() => setIsEditDialogOpen(false)}
+              disabled={editUser.isPending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateUser} disabled={editUser.isPending}>
+              {editUser.isPending ? "Updating..." : "Update User"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <AlertDialog
+        open={isDeleteDialogOpen}
+        onOpenChange={setIsDeleteDialogOpen}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the
+              user{" "}
+              <span className="font-semibold">{userToDelete?.full_name}</span>{" "}
+              and remove all their data from our servers.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setIsDeleteDialogOpen(false)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteUser}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteUser.isPending}
+            >
+              {deleteUser.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {filteredUsers.length === 0 && (
         <div className="text-center py-10">
