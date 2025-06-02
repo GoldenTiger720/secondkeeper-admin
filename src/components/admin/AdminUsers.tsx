@@ -77,8 +77,8 @@ const AdminUsers = () => {
     return users.filter(
       (user) =>
         user.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        user.phone_number.includes(searchQuery)
+        user.email.toLowerCase().includes(searchQuery.toLowerCase())
+      // user.phone_number.includes(searchQuery)
     );
   }, [users, searchQuery]);
 
@@ -101,6 +101,24 @@ const AdminUsers = () => {
       toast({
         title: "Validation Error",
         description: "Full name is required.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!formData.phone_number.trim()) {
+      toast({
+        title: "Validation Error",
+        description: "Phone is required.",
+        variant: "destructive",
+      });
+      return false;
+    }
+
+    if (!/^\d+$/.test(formData.phone_number.trim())) {
+      toast({
+        title: "Validation Error",
+        description: "Phone number must contain only numbers.",
         variant: "destructive",
       });
       return false;
