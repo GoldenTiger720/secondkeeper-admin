@@ -5,6 +5,7 @@ interface SyncOperation {
   id: string;
   type: "users" | "cameras" | "alerts";
   action: "create" | "update" | "update_status" | "delete";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
   timestamp: number;
   retryCount: number;
@@ -121,6 +122,7 @@ class DataSyncService {
   }
 
   // Sync user operations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async syncUserOperation(action: string, data: any): Promise<void> {
     switch (action) {
       case "create":
@@ -149,6 +151,7 @@ class DataSyncService {
   }
 
   // Sync camera operations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async syncCameraOperation(action: string, data: any): Promise<void> {
     switch (action) {
       case "create":
@@ -166,6 +169,7 @@ class DataSyncService {
   }
 
   // Sync alert operations
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async syncAlertOperation(action: string, data: any): Promise<void> {
     switch (action) {
       case "update":

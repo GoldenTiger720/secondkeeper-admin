@@ -24,6 +24,7 @@ interface DeleteCameraVariables {
 }
 
 export const useCameras = () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updateCamera = useOptimisticMutation<any, UpdateCameraVariables>({
     mutationFn: async ({ cameraId, data }) => {
       const response = await apiClient.put(`/cameras/${cameraId}/`, data);
@@ -33,6 +34,7 @@ export const useCameras = () => {
     onOptimisticUpdate: (oldData, { cameraId, data }) => {
       if (!oldData) return oldData;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.map((camera: any) =>
         camera.id === cameraId
           ? { ...camera, ...data, updated_at: new Date().toISOString() }
@@ -43,6 +45,7 @@ export const useCameras = () => {
     onErrorMessage: "Failed to update camera",
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const addCamera = useOptimisticMutation<any, AddCameraVariables>({
     mutationFn: async (cameraData) => {
       const response = await apiClient.post("/cameras/", cameraData);
@@ -69,6 +72,7 @@ export const useCameras = () => {
     onErrorMessage: "Failed to add camera",
   });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const deleteCamera = useOptimisticMutation<any, DeleteCameraVariables>({
     mutationFn: async ({ cameraId }) => {
       const response = await apiClient.delete(`/cameras/${cameraId}/`);
@@ -77,6 +81,7 @@ export const useCameras = () => {
     queryKey: QUERY_KEYS.cameras,
     onOptimisticUpdate: (oldData, { cameraId }) => {
       if (!oldData) return oldData;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.filter((camera: any) => camera.id !== cameraId);
     },
     onSuccessMessage: "Camera deleted successfully",

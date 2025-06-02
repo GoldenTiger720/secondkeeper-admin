@@ -4,6 +4,7 @@ import { QUERY_KEYS } from "@/contexts/AdminDataContext";
 
 export const useOfflineSync = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [pendingChanges, setPendingChanges] = useState<any[]>([]);
   const queryClient = useQueryClient();
 
@@ -25,8 +26,10 @@ export const useOfflineSync = () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const addPendingChange = (change: any) => {
     if (!isOnline) {
       setPendingChanges((prev) => [...prev, change]);

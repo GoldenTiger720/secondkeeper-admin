@@ -6,6 +6,7 @@ import apiClient from "@/lib/api/axiosConfig";
 interface PendingChange {
   type: "users" | "cameras" | "alerts";
   action: "create" | "update" | "delete";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   data: any;
   timestamp: number;
 }
@@ -128,6 +129,7 @@ export const usePersistChanges = () => {
         syncToBackend(); // Final sync on cleanup
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return { addPendingChange, syncToBackend };

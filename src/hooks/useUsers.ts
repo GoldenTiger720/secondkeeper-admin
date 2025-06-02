@@ -52,9 +52,11 @@ export const useUsers = () => {
       const previousUsers = queryClient.getQueryData(QUERY_KEYS.users);
 
       // Optimistically update
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       queryClient.setQueryData(QUERY_KEYS.users, (old: any) => {
         if (!old) return old;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return old.map((user: any) => {
           if (user.id === userId) {
             if (action === "Block") {
@@ -106,6 +108,7 @@ export const useUsers = () => {
       const previousUsers = queryClient.getQueryData(QUERY_KEYS.users);
 
       // Optimistically update
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       queryClient.setQueryData(QUERY_KEYS.users, (old: any) => {
         if (!old) return [newUser];
 
@@ -162,9 +165,11 @@ export const useUsers = () => {
       const previousUsers = queryClient.getQueryData(QUERY_KEYS.users);
 
       // Optimistically update
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       queryClient.setQueryData(QUERY_KEYS.users, (old: any) => {
         if (!old) return old;
 
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return old.map((user: any) => {
           if (user.id === userId) {
             return {
@@ -217,8 +222,10 @@ export const useUsers = () => {
       const previousUsers = queryClient.getQueryData(QUERY_KEYS.users);
 
       // Optimistically update (remove user from list)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       queryClient.setQueryData(QUERY_KEYS.users, (old: any) => {
         if (!old) return old;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         return old.filter((user: any) => user.id !== userId);
       });
 

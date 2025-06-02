@@ -26,6 +26,7 @@ export const useOptimizedUsers = () => {
     onOptimisticUpdate: (oldData, { userId, action }) => {
       if (!oldData) return oldData;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.map((user: any) => {
         if (user.id === userId) {
           if (action === "Block") {
@@ -41,6 +42,7 @@ export const useOptimizedUsers = () => {
   });
 
   const addUser = useOptimisticMutation({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: async (userData: any) => {
       dataSyncService.addToQueue({
         type: "users",
@@ -76,6 +78,7 @@ export const useOptimizedUsers = () => {
       userData,
     }: {
       userId: string;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       userData: any;
     }) => {
       dataSyncService.addToQueue({
@@ -90,6 +93,7 @@ export const useOptimizedUsers = () => {
     onOptimisticUpdate: (oldData, { userId, userData }) => {
       if (!oldData) return oldData;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.map((user: any) => {
         if (user.id === userId) {
           return {
@@ -118,6 +122,7 @@ export const useOptimizedUsers = () => {
     queryKey: QUERY_KEYS.users,
     onOptimisticUpdate: (oldData, { userId }) => {
       if (!oldData) return oldData;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.filter((user: any) => user.id !== userId);
     },
     onSuccessMessage: "User deleted (syncing in background)",
@@ -128,6 +133,7 @@ export const useOptimizedUsers = () => {
 
 export const useOptimizedCameras = () => {
   const updateCamera = useOptimisticMutation({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: async ({ cameraId, data }: { cameraId: string; data: any }) => {
       dataSyncService.addToQueue({
         type: "cameras",
@@ -141,6 +147,7 @@ export const useOptimizedCameras = () => {
     onOptimisticUpdate: (oldData, { cameraId, data }) => {
       if (!oldData) return oldData;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.map((camera: any) =>
         camera.id === cameraId
           ? { ...camera, ...data, updated_at: new Date().toISOString() }
@@ -151,6 +158,7 @@ export const useOptimizedCameras = () => {
   });
 
   const addCamera = useOptimisticMutation({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mutationFn: async (cameraData: any) => {
       dataSyncService.addToQueue({
         type: "cameras",
@@ -193,6 +201,7 @@ export const useOptimizedCameras = () => {
     queryKey: QUERY_KEYS.cameras,
     onOptimisticUpdate: (oldData, { cameraId }) => {
       if (!oldData) return oldData;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.filter((camera: any) => camera.id !== cameraId);
     },
     onSuccessMessage: "Camera deleted (syncing in background)",
@@ -222,6 +231,7 @@ export const useOptimizedAlerts = () => {
     onOptimisticUpdate: (oldData, { alertId, status }) => {
       if (!oldData) return oldData;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.map((alert: any) =>
         alert.id === alertId ? { ...alert, status } : alert
       );

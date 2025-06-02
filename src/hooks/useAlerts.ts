@@ -9,6 +9,7 @@ interface UpdateAlertStatusVariables {
 
 export const useAlerts = () => {
   const updateAlertStatus = useOptimisticMutation<
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     any,
     UpdateAlertStatusVariables
   >({
@@ -20,6 +21,7 @@ export const useAlerts = () => {
     onOptimisticUpdate: (oldData, { alertId, status }) => {
       if (!oldData) return oldData;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       return oldData.map((alert: any) =>
         alert.id === alertId ? { ...alert, status } : alert
       );

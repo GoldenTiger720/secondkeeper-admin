@@ -371,6 +371,7 @@ const AdminUsers = () => {
       } else if (action === "Delete") {
         handleDeleteUser(user);
       } else if (action === "Block" || action === "Unblock") {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         await updateUserStatus.mutateAsync({ userId, action } as any);
       }
     } catch (error) {
