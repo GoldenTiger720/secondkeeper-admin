@@ -1,4 +1,3 @@
-// src/components/admin/AddRoleOptimized.tsx
 import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +30,6 @@ import { Plus, Search, Eye, EyeOff } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAdminData } from "@/contexts/AdminDataContext";
 import { useUsers } from "@/hooks/useUsers";
-import { useQuery } from "@tanstack/react-query";
-import apiClient from "@/lib/api/axiosConfig";
 
 interface User {
   id: string;
@@ -47,15 +44,6 @@ interface User {
   date_joined: string;
 }
 
-interface UserPermissions {
-  can_add_roles: boolean;
-  can_manage_users: boolean;
-  role: string;
-  is_admin: boolean;
-  is_manager: boolean;
-  is_reviewer: boolean;
-}
-
 interface AddRoleFormData {
   full_name: string;
   email: string;
@@ -65,7 +53,7 @@ interface AddRoleFormData {
 }
 
 const AddRole = () => {
-  const { users, isLoading: usersLoading } = useAdminData();
+  const { users, permissions, isLoading: usersLoading } = useAdminData();
   const { addUser } = useUsers();
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -77,24 +65,6 @@ const AddRole = () => {
     role: "",
     password: "",
     confirm_password: "",
-  });
-
-  // Fetch user permissions with React Query
-  const {
-    data: permissions,
-    isLoading: permissionsLoading,
-    error: permissionsError,
-  } = useQuery({
-    queryKey: ["admin", "permissions"],
-    queryFn: async (): Promise<UserPermissions> => {
-      const response = await apiClient.get("/admin/users/user_permissions/");
-      if (response.data && response.data.success) {
-        return response.data.data;
-      }
-      throw new Error("Failed to fetch permissions");
-    },
-    staleTime: 10 * 60 * 1000, // 10 minutes
-    gcTime: 15 * 60 * 1000, // 15 minutes
   });
 
   const roleOptions = [
@@ -225,23 +195,10 @@ const AddRole = () => {
   };
 
   // Loading state
-  if (usersLoading || permissionsLoading) {
+  if (usersLoading) {
     return (
       <div className="flex justify-center items-center py-10">
         <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
-      </div>
-    );
-  }
-
-  // Error state
-  if (permissionsError) {
-    return (
-      <div className="text-center py-10">
-        <h2 className="text-xl font-bold mb-4">Error Loading Permissions</h2>
-        <p className="text-muted-foreground mb-4">
-          {permissionsError.message || "Failed to load user permissions"}
-        </p>
-        <Button onClick={() => window.location.reload()}>Retry</Button>
       </div>
     );
   }
@@ -304,6 +261,7 @@ const AddRole = () => {
           </CardContent>
         </Card>
       </div>
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <h2 className="text-xl md:text-2xl font-bold tracking-tight">
           Role Management ({filteredUsers.length} users)

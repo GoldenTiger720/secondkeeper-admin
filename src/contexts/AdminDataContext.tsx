@@ -38,11 +38,21 @@ interface Alert {
   thumbnail: string;
 }
 
+interface UserPermissions {
+  can_add_roles: boolean;
+  can_manage_users: boolean;
+  role: string;
+  is_admin: boolean;
+  is_manager: boolean;
+  is_reviewer: boolean;
+}
+
 interface AdminDataContextType {
   users: User[];
   cameras: Camera[];
-  //   alerts: Alert[];
+  permissions: UserPermissions | null;
   isLoading: boolean;
+  isPermissionsLoading: boolean;
   error: string | null;
   refetchAll: () => void;
 }
@@ -71,13 +81,30 @@ const fetchCameras = async (): Promise<Camera[]> => {
   return response.data?.data?.results || response.data?.data || [];
 };
 
-// const fetchAlerts = async (): Promise<Alert[]> => {
-//   const response = await apiClient.get("/admin/alerts/");
-//   return response.data?.data?.results || response.data?.data || [];
-// };
+const fetchUserPermissions = async (): Promise<UserPermissions> => {
+  const response = await apiClient.get("/admin/users/user_permissions/");
+  if (response.data && response.data.success) {
+    return response.data.data;
+  }
+  throw new Error("Failed to fetch permissions");
+};
 
 export function AdminDataProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+
+  // Fetch user permissions once with long cache time
+  const {
+    data: permissions = null,
+    isLoading: isPermissionsLoading,
+    error: permissionsError,
+  } = useQuery({
+    queryKey: QUERY_KEYS.permissions,
+    queryFn: fetchUserPermissions,
+    staleTime: 30 * 60 * 1000, // 30 minutes - permissions rarely change
+    gcTime: 60 * 60 * 1000, // 1 hour
+    retry: 2,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  });
 
   const {
     data: users = [],
@@ -88,6 +115,7 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     queryFn: fetchUsers,
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
+    enabled: !!permissions, // Only fetch if permissions are loaded
   });
 
   const {
@@ -99,38 +127,29 @@ export function AdminDataProvider({ children }: { children: ReactNode }) {
     queryFn: fetchCameras,
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
+    enabled: !!permissions, // Only fetch if permissions are loaded
   });
 
-  //   const {
-  //     data: alerts = [],
-  //     isLoading: alertsLoading,
-  //     error: alertsError,
-  //   } = useQuery({
-  //     queryKey: QUERY_KEYS.alerts,
-  //     queryFn: fetchAlerts,
-  //     staleTime: 1 * 60 * 1000, // 1 minute for alerts (more frequent updates)
-  //     gcTime: 5 * 60 * 1000,
-  //   });
-
-  // const isLoading = usersLoading || camerasLoading || alertsLoading;
   const isLoading = usersLoading || camerasLoading;
   const error =
     usersError?.message ||
     camerasError?.message ||
-    // alertsError?.message ||
+    permissionsError?.message ||
     null;
 
   const refetchAll = () => {
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cameras });
     queryClient.invalidateQueries({ queryKey: QUERY_KEYS.alerts });
+    // Don't refetch permissions unless explicitly needed
   };
 
   const value: AdminDataContextType = {
     users,
     cameras,
-    // alerts,
+    permissions,
     isLoading,
+    isPermissionsLoading,
     error,
     refetchAll,
   };

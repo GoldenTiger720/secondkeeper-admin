@@ -1,4 +1,4 @@
-import { useState, useEffect, Suspense, lazy } from "react";
+import { useState, useEffect, Suspense, lazy, useCallback } from "react";
 import { Routes, Route, NavLink } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -18,8 +18,6 @@ import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminData } from "@/contexts/AdminDataContext";
 import { usePersistChanges } from "@/hooks/usePersistChanges";
-import apiClient from "@/lib/api/axiosConfig";
-import { toast } from "@/hooks/use-toast";
 
 // Lazy load components for better performance
 const AdminUsersOptimized = lazy(() => import("@/components/admin/AdminUsers"));
@@ -38,15 +36,6 @@ const AdminTraining = lazy(() => import("@/components/admin/AdminTraining"));
 const AdminSettings = lazy(() => import("@/components/admin/AdminSettings"));
 const AddRole = lazy(() => import("@/components/admin/AddRole"));
 
-interface UserPermissions {
-  can_add_roles: boolean;
-  can_manage_users: boolean;
-  role: string;
-  is_admin: boolean;
-  is_manager: boolean;
-  is_reviewer: boolean;
-}
-
 const LoadingSpinner = () => (
   <div className="flex justify-center items-center py-10">
     <div className="animate-spin h-8 w-8 border-2 border-primary rounded-full border-t-transparent"></div>
@@ -55,45 +44,27 @@ const LoadingSpinner = () => (
 
 const Admin = () => {
   const { user } = useAuth();
-  const { isLoading: dataLoading, error } = useAdminData();
+  const {
+    isLoading: dataLoading,
+    isPermissionsLoading,
+    permissions,
+    error,
+  } = useAdminData();
   const { syncToBackend } = usePersistChanges();
-  const [permissions, setPermissions] = useState<UserPermissions | null>(null);
-  const [isLoadingPermissions, setIsLoadingPermissions] = useState(true);
 
-  // Calculate alert count from the cached data
-  // const alertCount =
-  //   alerts?.filter(
-  //     (alert) => alert.status === "new" || alert.status === "pending"
-  //   )?.length || 0;
+  // Memoize syncToBackend to prevent unnecessary re-renders
+  const memoizedSyncToBackend = useCallback(() => {
+    syncToBackend();
+  }, [syncToBackend]);
 
   useEffect(() => {
-    fetchUserPermissions();
-
     // Auto-sync changes periodically
     const syncInterval = setInterval(() => {
-      syncToBackend();
+      memoizedSyncToBackend();
     }, 60000); // Sync every minute
 
     return () => clearInterval(syncInterval);
-  }, [syncToBackend]);
-
-  const fetchUserPermissions = async () => {
-    try {
-      const response = await apiClient.get("/admin/users/user_permissions/");
-      if (response.data && response.data.success) {
-        setPermissions(response.data.data);
-      }
-    } catch (error) {
-      console.error("Error fetching user permissions:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load user permissions.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoadingPermissions(false);
-    }
-  };
+  }, [memoizedSyncToBackend]); // Use memoized version
 
   const getMenuItems = () => {
     if (!permissions) return [];
@@ -147,7 +118,7 @@ const Admin = () => {
         path: "/alerts",
         label: "Alerts",
         icon: <Bell className="mr-2 h-5 w-5" />,
-        // badge: alertCount > 0 ? alertCount : null,
+        badge: null,
       },
       {
         path: "/whatsapp",
@@ -205,7 +176,8 @@ const Admin = () => {
     );
   };
 
-  if (isLoadingPermissions || dataLoading) {
+  // Show loading state while fetching permissions or data
+  if (isPermissionsLoading || dataLoading) {
     return (
       <DashboardLayout>
         <LoadingSpinner />
@@ -213,6 +185,7 @@ const Admin = () => {
     );
   }
 
+  // Show error state
   if (error) {
     return (
       <DashboardLayout>
@@ -232,6 +205,7 @@ const Admin = () => {
     );
   }
 
+  // Show access denied if no permissions
   if (!permissions) {
     return (
       <DashboardLayout>
