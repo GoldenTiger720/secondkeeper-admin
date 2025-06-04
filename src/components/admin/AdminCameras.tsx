@@ -138,12 +138,7 @@ const AdminCameras = () => {
           Camera Management ({filteredCameras.length})
         </h2>
         <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            {/* <Button>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Camera
-            </Button> */}
-          </DialogTrigger>
+          <DialogTrigger asChild></DialogTrigger>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Add New Camera</DialogTitle>
@@ -215,12 +210,14 @@ const AdminCameras = () => {
                   <TableHead className="hidden lg:table-cell">
                     Created
                   </TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredCameras.map((camera) => (
-                  <TableRow key={camera.id}>
+                  <TableRow
+                    key={camera.id}
+                    className="hover:bg-muted/50 cursor-pointer"
+                  >
                     <TableCell className="font-medium">{camera.name}</TableCell>
                     <TableCell
                       className="hidden md:table-cell font-mono text-xs truncate max-w-[300px]"
@@ -239,35 +236,6 @@ const AdminCameras = () => {
                     <TableCell>{getStatusBadge(camera.status)}</TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {new Date(camera.created_at).toLocaleDateString()}
-                    </TableCell>
-                    <TableCell className="text-right space-x-1">
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 inline-flex"
-                        title="View Camera"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 inline-flex"
-                        title="Edit Camera"
-                        onClick={() => setEditingCamera(camera)}
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="icon"
-                        className="h-8 w-8 inline-flex hover:bg-red-50 hover:text-red-600"
-                        title="Delete Camera"
-                        onClick={() => handleDeleteCamera(camera.id)}
-                        disabled={deleteCamera.isPending}
-                      >
-                        <Trash className="h-4 w-4" />
-                      </Button>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import Hls from "hls.js";
 import { camerasService, Camera } from "@/lib/api/camerasService";
@@ -25,10 +24,13 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
         const response = await camerasService.getCamera(cameraId);
         if (response.success) {
           setCamera(response.data);
-          
+
           // Start the stream
           try {
-            const streamResponse = await camerasService.startStream(cameraId, "medium");
+            const streamResponse = await camerasService.startStream(
+              cameraId,
+              "medium"
+            );
             if (streamResponse.success) {
               setStreamUrl(streamResponse.data.websocket_url);
             } else {
@@ -50,13 +52,14 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
     };
 
     fetchCameraData();
-    
+
     // Cleanup function to stop the stream when component unmounts
     return () => {
       if (camera) {
         // Here we could stop the stream if needed
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cameraId]);
 
   useEffect(() => {
@@ -75,7 +78,7 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
       hls.attachMedia(video);
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        video.play().catch(e => {
+        video.play().catch((e) => {
           console.warn("Autoplay prevented:", e);
         });
       });
@@ -94,7 +97,7 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
       // For Safari
       video.src = streamUrl;
       video.addEventListener("loadedmetadata", () => {
-        video.play().catch(e => {
+        video.play().catch((e) => {
           console.warn("Autoplay prevented:", e);
         });
       });
