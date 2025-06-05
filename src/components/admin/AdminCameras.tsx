@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Search, Edit, Trash, Eye, Plus } from "lucide-react";
+import { Search } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { useAdminData } from "@/contexts/AdminDataContext";
 import { useCameras } from "@/hooks/useCameras";
+import { CameraStream } from "@/components/CameraStream";
 
 const AdminCameras = () => {
   const { cameras, users, isLoading } = useAdminData();
@@ -38,6 +39,7 @@ const AdminCameras = () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [editingCamera, setEditingCamera] = useState<any>(null);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [selectedCameraId, setSelectedCameraId] = useState<string | null>(null);
 
   // Memoized filtered cameras
   const filteredCameras = useMemo(() => {
@@ -217,6 +219,7 @@ const AdminCameras = () => {
                   <TableRow
                     key={camera.id}
                     className="hover:bg-muted/50 cursor-pointer"
+                    onClick={() => setSelectedCameraId(camera.id)}
                   >
                     <TableCell className="font-medium">{camera.name}</TableCell>
                     <TableCell
@@ -251,6 +254,25 @@ const AdminCameras = () => {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog
+        open={!!selectedCameraId}
+        onOpenChange={() => setSelectedCameraId(null)}
+      >
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>
+              Camera Stream -{" "}
+              {cameras?.find((c) => c.id === selectedCameraId)?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedCameraId && (
+            <div className="py-4">
+              <CameraStream cameraId={selectedCameraId} className="w-full" />
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Edit Camera Dialog */}
       <Dialog

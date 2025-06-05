@@ -22,7 +22,7 @@ export interface StreamResponse {
   data: {
     camera_id: string;
     session_id: string;
-    websocket_url: string;
+    stream_url: string;
     quality: string;
     status: string;
   };

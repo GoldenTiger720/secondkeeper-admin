@@ -31,8 +31,10 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
               cameraId,
               "medium"
             );
+            console.log("Stream response:", streamResponse);
             if (streamResponse.success) {
-              setStreamUrl(streamResponse.data.websocket_url);
+              const hlsUrl = `https://api.secondkeeper.com/media/streams/${cameraId}/index.m3u8`;
+              setStreamUrl(hlsUrl);
             } else {
               setError("Failed to start camera stream");
             }
@@ -63,6 +65,7 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
   }, [cameraId]);
 
   useEffect(() => {
+    console.log("Stream URL:", streamUrl);
     if (!streamUrl || !videoRef.current) return;
 
     const video = videoRef.current;
@@ -72,6 +75,9 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
         debug: false,
         enableWorker: true,
         lowLatencyMode: true,
+        maxLoadingDelay: 4,
+        maxBufferLength: 30,
+        maxBufferSize: 60 * 1000 * 1000,
       });
 
       hls.loadSource(streamUrl);
@@ -86,7 +92,17 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
       hls.on(Hls.Events.ERROR, (event, data) => {
         console.error("HLS error:", data);
         if (data.fatal) {
-          setError("Streaming error occurred");
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              setError("Network error occurred while loading stream");
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              setError("Media error occurred while playing stream");
+              break;
+            default:
+              setError("Fatal streaming error occurred");
+              break;
+          }
         }
       });
 
