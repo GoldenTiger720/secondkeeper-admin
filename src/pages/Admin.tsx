@@ -112,6 +112,35 @@ const Admin = () => {
       );
     }
 
+    if (permissions.is_reviewer) {
+      return [
+        {
+          path: "/settings",
+          label: "Settings",
+          icon: <Settings className="mr-2 h-5 w-5" />,
+          badge: null,
+        },
+        {
+          path: "/alerts",
+          label: "Alerts",
+          icon: <Bell className="mr-2 h-5 w-5" />,
+          badge: null,
+        },
+        {
+          path: "/whatsapp",
+          label: "WhatsApp",
+          icon: <MessageSquare className="mr-2 h-5 w-5" />,
+          badge: null,
+        },
+        {
+          path: "/verification",
+          label: "Verification",
+          icon: <Check className="mr-2 h-5 w-5" />,
+          badge: null,
+        },
+      ];
+    }
+
     // Items available to all authenticated users
     baseItems.push(
       {
@@ -241,7 +270,9 @@ const Admin = () => {
                   <Route
                     path="/"
                     element={
-                      permissions.can_manage_users ? (
+                      permissions.is_reviewer ? (
+                        <AdminSettings />
+                      ) : permissions.can_manage_users ? (
                         <AdminUsersOptimized />
                       ) : (
                         <AdminAlerts />
@@ -249,8 +280,8 @@ const Admin = () => {
                     }
                   />
 
-                  {/* Routes available to managers and admins */}
-                  {permissions.can_manage_users && (
+                  {/* Routes available to managers and admins only */}
+                  {permissions.can_manage_users && !permissions.is_reviewer && (
                     <>
                       <Route path="/users" element={<AdminUsersOptimized />} />
                       <Route
@@ -272,11 +303,31 @@ const Admin = () => {
                     </>
                   )}
 
-                  {/* Routes available to all authenticated users */}
-                  <Route path="/alerts" element={<AdminAlerts />} />
-                  <Route path="/whatsapp" element={<AdminWhatsApp />} />
-                  <Route path="/verification" element={<AdminVerification />} />
-                  <Route path="/training" element={<AdminTraining />} />
+                  {/* Reviewer-only accessible routes */}
+                  {permissions.is_reviewer && (
+                    <>
+                      <Route path="/settings" element={<AdminSettings />} />
+                      <Route path="/alerts" element={<AdminAlerts />} />
+                      <Route path="/whatsapp" element={<AdminWhatsApp />} />
+                      <Route
+                        path="/verification"
+                        element={<AdminVerification />}
+                      />
+                    </>
+                  )}
+
+                  {/* Routes available to managers and admins (not reviewers) */}
+                  {!permissions.is_reviewer && (
+                    <>
+                      <Route path="/alerts" element={<AdminAlerts />} />
+                      <Route path="/whatsapp" element={<AdminWhatsApp />} />
+                      <Route
+                        path="/verification"
+                        element={<AdminVerification />}
+                      />
+                      <Route path="/training" element={<AdminTraining />} />
+                    </>
+                  )}
                 </Routes>
               </Suspense>
             </CardContent>

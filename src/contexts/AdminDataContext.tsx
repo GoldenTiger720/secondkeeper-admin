@@ -83,6 +83,7 @@ const fetchCameras = async (): Promise<Camera[]> => {
 
 const fetchUserPermissions = async (): Promise<UserPermissions> => {
   const response = await apiClient.get("/admin/users/user_permissions/");
+  console.log("Fetched user permissions:", response.data);
   if (response.data && response.data.success) {
     return response.data.data;
   }
