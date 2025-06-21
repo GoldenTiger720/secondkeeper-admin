@@ -12,12 +12,16 @@ import {
   Database,
   Settings,
   UserPlus,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useAuth } from "@/hooks/useAuth";
 import { useAdminData } from "@/contexts/AdminDataContext";
 import { usePersistChanges } from "@/hooks/usePersistChanges";
+import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Lazy load components for better performance
 const AdminUsersOptimized = lazy(() => import("@/components/admin/AdminUsers"));
@@ -49,8 +53,11 @@ const Admin = () => {
     isPermissionsLoading,
     permissions,
     error,
+    refetchAll,
   } = useAdminData();
   const { syncToBackend } = usePersistChanges();
+  const [retryCount, setRetryCount] = useState(0);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   // Memoize syncToBackend to prevent unnecessary re-renders
   const memoizedSyncToBackend = useCallback(() => {
@@ -64,7 +71,22 @@ const Admin = () => {
     }, 60000); // Sync every minute
 
     return () => clearInterval(syncInterval);
-  }, [memoizedSyncToBackend]); // Use memoized version
+  }, [memoizedSyncToBackend]);
+
+  const handleRetry = async () => {
+    if (isRetrying) return;
+
+    setIsRetrying(true);
+    setRetryCount((prev) => prev + 1);
+
+    try {
+      await refetchAll();
+    } catch (error) {
+      console.error("Retry failed:", error);
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   const getMenuItems = () => {
     if (!permissions) return [];
@@ -206,44 +228,130 @@ const Admin = () => {
   };
 
   // Show loading state while fetching permissions or data
-  if (isPermissionsLoading || dataLoading) {
-    return (
-      <DashboardLayout>
-        <LoadingSpinner />
-      </DashboardLayout>
-    );
-  }
-
-  // Show error state
-  if (error) {
+  if (isPermissionsLoading) {
     return (
       <DashboardLayout>
         <div className="min-h-screen bg-background flex items-center justify-center">
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Error Loading Data</h2>
-            <p className="text-muted-foreground mb-4">{error}</p>
-            <button
-              onClick={() => window.location.reload()}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              Retry
-            </button>
+            <LoadingSpinner />
+            <p className="mt-4 text-muted-foreground">
+              Verifying permissions...
+            </p>
           </div>
         </div>
       </DashboardLayout>
     );
   }
 
-  // Show access denied if no permissions
+  // Show error state - but permissions errors will auto-logout, so this is mainly for other errors
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div className="min-h-screen bg-background flex items-center justify-center">
+          <div className="text-center max-w-md">
+            <Alert variant="destructive" className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-medium">Unable to load dashboard data</p>
+                  <p className="text-sm">{error}</p>
+                  {retryCount > 0 && (
+                    <p className="text-xs">Retry attempt: {retryCount}</p>
+                  )}
+                </div>
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-3">
+              <Button
+                onClick={handleRetry}
+                disabled={isRetrying}
+                className="w-full"
+              >
+                {isRetrying ? (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                    Retrying...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="mr-2 h-4 w-4" />
+                    Try Again
+                  </>
+                )}
+              </Button>
+
+              <Button
+                variant="outline"
+                onClick={() => window.location.reload()}
+                className="w-full"
+              >
+                Refresh Page
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show access denied if no permissions (this should rarely show since auth errors auto-logout)
   if (!permissions) {
     return (
       <DashboardLayout>
         <div className="min-h-screen bg-background flex items-center justify-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Access Denied</h2>
-            <p className="text-muted-foreground">
-              You don't have permission to access this area.
-            </p>
+          <div className="text-center max-w-md">
+            <Alert className="mb-6">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <div className="space-y-2">
+                  <p className="font-medium">Unable to verify permissions</p>
+                  <p className="text-sm">
+                    Your session may have expired or you may not have access to
+                    this area.
+                  </p>
+                </div>
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-3">
+              <Button
+                onClick={() => (window.location.href = "/login")}
+                className="w-full"
+              >
+                Go to Login
+              </Button>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  // Show loading for data while permissions are available
+  if (dataLoading) {
+    return (
+      <DashboardLayout>
+        <div className="min-h-screen bg-background">
+          <div className="container py-6 grid grid-cols-12 gap-6">
+            {/* Desktop sidebar */}
+            <Card className="col-span-12 lg:col-span-3 h-fit hidden lg:block">
+              <CardContent className="p-0">
+                <AdminNav />
+              </CardContent>
+            </Card>
+
+            {/* Main content loading */}
+            <Card className="col-span-12 lg:col-span-9">
+              <CardContent className="p-4 sm:p-6">
+                <div className="text-center py-10">
+                  <LoadingSpinner />
+                  <p className="mt-4 text-muted-foreground">
+                    Loading dashboard data...
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </div>
         </div>
       </DashboardLayout>

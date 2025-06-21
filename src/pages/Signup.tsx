@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -22,10 +22,19 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Logo } from "@/components/Logo";
-import { Eye, EyeOff, Lock, Mail, Phone, User } from "lucide-react";
+import {
+  Eye,
+  EyeOff,
+  Lock,
+  Mail,
+  Phone,
+  User,
+  AlertCircle,
+} from "lucide-react";
 import { authService } from "@/lib/api/authService";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 const signupSchema = z
   .object({
@@ -45,9 +54,14 @@ type SignupFormValues = z.infer<typeof signupSchema>;
 export default function Signup() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [signupStep, setSignupStep] = useState<"form" | "processing" | "login">(
+    "form"
+  );
+  const [registrationData, setRegistrationData] =
+    useState<SignupFormValues | null>(null);
 
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(signupSchema),
@@ -60,31 +74,56 @@ export default function Signup() {
     },
   });
 
-  async function onSubmit(data: SignupFormValues) {
-    setIsLoading(true);
+  // Auto-logout on component mount to ensure clean state
+  useEffect(() => {
+    logout(false); // Don't show logout message
+  }, [logout]);
+
+  const handleRegistration = async (data: SignupFormValues) => {
+    const userData = {
+      full_name: data.full_name,
+      username: data.email,
+      email: data.email,
+      phone_number: data.phone_number,
+      password: data.password,
+    };
+
     try {
-      if (data.password !== data.confirm_password) {
-        throw new Error("Passwords do not match");
-      }
-      const userData = {
-        full_name: data.full_name,
-        username: data.email,
-        email: data.email,
-        phone_number: data.phone_number,
-        password: data.password,
-      };
-
       await authService.register(userData);
+      return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error("Registration error:", error);
 
-      // Auto-login after successful registration
-      const loginData = {
-        email: data.email,
-        password: data.password,
-      };
-      await login({
-        email: data.email,
-        password: data.password,
-      });
+      // Handle specific error types
+      if (error.response?.status === 400) {
+        toast({
+          title: "Registration Failed",
+          description:
+            "Email already exists or validation error. Please check your information.",
+          variant: "destructive",
+        });
+      } else if (error.response?.status === 429) {
+        toast({
+          title: "Too Many Attempts",
+          description: "Please wait a moment before trying again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Registration Failed",
+          description:
+            "Your password must contain a mix of letters, numbers, and uppercase letters.",
+          variant: "destructive",
+        });
+      }
+      return false;
+    }
+  };
+
+  const handleAutoLogin = async (email: string, password: string) => {
+    try {
+      await login({ email, password });
 
       toast({
         title: "Account created successfully!",
@@ -92,18 +131,82 @@ export default function Signup() {
       });
 
       navigate("/");
-    } catch (error) {
-      console.error("Registration error:", error);
+      return true;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error("Auto-login error:", error);
+
+      // If auto-login fails, redirect to login page with message
       toast({
-        title: "Registration failed",
-        description:
-          "Your password must contain a mix of letters, numbers, and uppercase letters. Please try again.",
-        variant: "destructive",
+        title: "Registration Successful",
+        description: "Account created! Please log in to continue.",
       });
+
+      navigate("/login");
+      return false;
+    }
+  };
+
+  async function onSubmit(data: SignupFormValues) {
+    if (isLoading) return;
+
+    setIsLoading(true);
+    setRegistrationData(data);
+
+    try {
+      // Validate passwords match
+      if (data.password !== data.confirm_password) {
+        throw new Error("Passwords do not match");
+      }
+
+      // Step 1: Registration
+      setSignupStep("processing");
+      const registrationSuccess = await handleRegistration(data);
+
+      if (!registrationSuccess) {
+        setSignupStep("form");
+        return;
+      }
+
+      // Step 2: Auto-login
+      setSignupStep("login");
+      await handleAutoLogin(data.email, data.password);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error("Signup process error:", error);
+
+      // Reset to form state on any error
+      setSignupStep("form");
+
+      // Handle session expiry during signup
+      if (error.response?.status === 401) {
+        toast({
+          title: "Session Expired",
+          description: "Please try registering again.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Registration Failed",
+          description: "An unexpected error occurred. Please try again.",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   }
+
+  const getStepMessage = () => {
+    switch (signupStep) {
+      case "processing":
+        return "Creating your account...";
+      case "login":
+        return "Logging you in...";
+      default:
+        return null;
+    }
+  };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-slate-900 p-4">
@@ -127,7 +230,16 @@ export default function Signup() {
               Enter your information to create an account
             </CardDescription>
           </CardHeader>
+
           <CardContent>
+            {/* Progress indicator */}
+            {signupStep !== "form" && (
+              <Alert className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>{getStepMessage()}</AlertDescription>
+              </Alert>
+            )}
+
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit(onSubmit)}
@@ -222,6 +334,7 @@ export default function Signup() {
                             size="sm"
                             className="absolute right-0 top-0 h-10 px-3"
                             onClick={() => setShowPassword(!showPassword)}
+                            disabled={isLoading}
                           >
                             {showPassword ? (
                               <EyeOff className="h-4 w-4" />
@@ -260,6 +373,7 @@ export default function Signup() {
                             onClick={() =>
                               setShowConfirmPassword(!showConfirmPassword)
                             }
+                            disabled={isLoading}
                           >
                             {showConfirmPassword ? (
                               <EyeOff className="h-4 w-4" />
@@ -275,11 +389,14 @@ export default function Signup() {
                 />
 
                 <Button type="submit" className="w-full" disabled={isLoading}>
-                  {isLoading ? "Creating Account..." : "Create Account"}
+                  {isLoading
+                    ? getStepMessage() || "Creating Account..."
+                    : "Create Account"}
                 </Button>
               </form>
             </Form>
           </CardContent>
+
           <CardFooter className="flex flex-col space-y-4">
             <div className="text-sm text-center text-gray-600 dark:text-gray-400">
               By creating an account, you agree to our{" "}
