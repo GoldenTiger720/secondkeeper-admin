@@ -44,16 +44,63 @@ const AdminAlerts = () => {
     setVideoModalOpen(true);
   };
 
+  const handleConfirmAlert = async (alertId: string) => {
+    try {
+      await alertsService.confirmAlert(alertId);
+      // Refresh the alerts list
+      const data = await alertsService.getReviewerAllAlerts();
+      let alertsData = [];
+      if (Array.isArray(data)) {
+        alertsData = data;
+      } else if (data.results && Array.isArray(data.results)) {
+        alertsData = data.results;
+      } else if (data.data && Array.isArray(data.data)) {
+        alertsData = data.data;
+      }
+      setAlerts(alertsData);
+    } catch (error) {
+      console.error("Failed to confirm alert:", error);
+    }
+  };
+
+  const handleMarkAsFalsePositive = async (alertId: string) => {
+    try {
+      await alertsService.markAsFalsePositive(alertId);
+      // Refresh the alerts list
+      const data = await alertsService.getReviewerAllAlerts();
+      let alertsData = [];
+      if (Array.isArray(data)) {
+        alertsData = data;
+      } else if (data.results && Array.isArray(data.results)) {
+        alertsData = data.results;
+      } else if (data.data && Array.isArray(data.data)) {
+        alertsData = data.data;
+      }
+      setAlerts(alertsData);
+    } catch (error) {
+      console.error("Failed to mark alert as false positive:", error);
+    }
+  };
+
   useEffect(() => {
     const fetchAlerts = async () => {
       try {
         setLoading(true);
         setError(null);
 
-        // Fetch alerts from the reviewer pending endpoint
-        const data = await alertsService.getReviewerPendingAlerts();
+        // Fetch alerts from the reviewer all endpoint
+        const data = await alertsService.getReviewerAllAlerts();
         console.log("Fetched alerts:", data);
-        if (!Array.isArray(data.results)) {
+        
+        // Handle different possible data structures
+        let alertsData = [];
+        if (Array.isArray(data)) {
+          alertsData = data;
+        } else if (data.results && Array.isArray(data.results)) {
+          alertsData = data.results;
+        } else if (data.data && Array.isArray(data.data)) {
+          alertsData = data.data;
+        } else {
           // Handle unexpected data format
           setError("Failed to load alerts. Please try again.");
           toast({
@@ -63,8 +110,9 @@ const AdminAlerts = () => {
           });
           return;
         }
+        
         // Set the alerts state directly with the fetched data
-        setAlerts(Array.isArray(data.results) ? data.results : []);
+        setAlerts(alertsData);
       } catch (err) {
         console.error("Failed to fetch alerts:", err);
         setError("Failed to load alerts. Please try again.");
@@ -85,9 +133,9 @@ const AdminAlerts = () => {
   }
   const filteredAlerts = alerts?.filter((alert) => {
     const matchesSearch =
-      alert.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      alert.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      alert.camera_name.toLowerCase().includes(searchQuery.toLowerCase());
+      (alert.alert_type?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (alert.username?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (alert.camera_name?.toLowerCase() || '').includes(searchQuery.toLowerCase());
 
     const matchesStatus = filter === "all" || alert.status === filter;
     const matchesType = typeFilter === "all" || alert.alert_type === typeFilter;
@@ -138,15 +186,30 @@ const AdminAlerts = () => {
           className="w-full"
         >
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
-            <TabsTrigger value="all">All</TabsTrigger>
+            <TabsTrigger value="all">
+              All
+              <Badge variant="secondary" className="ml-2">
+                {alerts.length}
+              </Badge>
+            </TabsTrigger>
             <TabsTrigger value="pending_review">
               Pending
               <Badge variant="secondary" className="ml-2">
                 {alerts.filter((a) => a.status === "pending_review").length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
-            <TabsTrigger value="false_positive">False Positive</TabsTrigger>
+            <TabsTrigger value="confirmed">
+              Confirmed
+              <Badge variant="secondary" className="ml-2">
+                {alerts.filter((a) => a.status === "confirmed").length}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="false_positive">
+              False Positive
+              <Badge variant="secondary" className="ml-2">
+                {alerts.filter((a) => a.status === "false_positive").length}
+              </Badge>
+            </TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -218,6 +281,8 @@ const AdminAlerts = () => {
                           size="sm"
                           variant="outline"
                           className="h-8 w-8 p-0"
+                          onClick={() => handleConfirmAlert(alert.id)}
+                          title="Confirm as accurate detection"
                         >
                           <Check className="h-4 w-4 text-green-500" />
                         </Button>
@@ -225,6 +290,8 @@ const AdminAlerts = () => {
                           size="sm"
                           variant="outline"
                           className="h-8 w-8 p-0"
+                          onClick={() => handleMarkAsFalsePositive(alert.id)}
+                          title="Mark as false positive"
                         >
                           <X className="h-4 w-4 text-destructive" />
                         </Button>
