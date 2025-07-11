@@ -56,7 +56,9 @@ const AdminCameras = () => {
         ? camera.status === selectedStatus
         : true;
 
-      return matchesSearch && matchesUser && matchesStatus;
+      const hasValidUrl = camera.stream_url.startsWith("https://") || camera.stream_url.startsWith("rtsp://");
+
+      return matchesSearch && matchesUser && matchesStatus && hasValidUrl;
     });
   }, [cameras, searchQuery, selectedUser, selectedStatus]);
 
