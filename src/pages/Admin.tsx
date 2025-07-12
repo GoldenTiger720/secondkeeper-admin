@@ -154,12 +154,12 @@ const Admin = () => {
           icon: <MessageSquare className="mr-2 h-5 w-5" />,
           badge: null,
         },
-        {
-          path: "/verification",
-          label: "Verification",
-          icon: <Check className="mr-2 h-5 w-5" />,
-          badge: null,
-        },
+        // {
+        //   path: "/verification",
+        //   label: "Verification",
+        //   icon: <Check className="mr-2 h-5 w-5" />,
+        //   badge: null,
+        // },
       ];
     }
 
@@ -177,12 +177,12 @@ const Admin = () => {
         icon: <MessageSquare className="mr-2 h-5 w-5" />,
         badge: null,
       },
-      {
-        path: "/verification",
-        label: "Verification",
-        icon: <Check className="mr-2 h-5 w-5" />,
-        badge: null,
-      },
+      // {
+      //   path: "/verification",
+      //   label: "Verification",
+      //   icon: <Check className="mr-2 h-5 w-5" />,
+      //   badge: null,
+      // },
       {
         path: "/training",
         label: "Training Data",
@@ -417,10 +417,10 @@ const Admin = () => {
                       <Route path="/settings" element={<AdminSettings />} />
                       <Route path="/alerts" element={<AdminAlerts />} />
                       <Route path="/whatsapp" element={<AdminWhatsApp />} />
-                      <Route
+                      {/* <Route
                         path="/verification"
                         element={<AdminVerification />}
-                      />
+                      /> */}
                     </>
                   )}
 
@@ -429,10 +429,10 @@ const Admin = () => {
                     <>
                       <Route path="/alerts" element={<AdminAlerts />} />
                       <Route path="/whatsapp" element={<AdminWhatsApp />} />
-                      <Route
+                      {/* <Route
                         path="/verification"
                         element={<AdminVerification />}
-                      />
+                      /> */}
                       <Route path="/training" element={<AdminTraining />} />
                     </>
                   )}
