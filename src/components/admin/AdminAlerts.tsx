@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Calendar, Check, X, Play } from "lucide-react";
+import { Search, Calendar, Check, X, Play, ChevronLeft, ChevronRight } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayModal from "./VideoPlayModal";
 import { toast } from "@/hooks/use-toast";
@@ -37,6 +37,8 @@ const AdminAlerts = () => {
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [currentVideo, setCurrentVideo] = useState("");
   const [currentAlertType, setCurrentAlertType] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const handlePlayVideo = (videoUrl: string, alertType: string) => {
     setCurrentVideo(videoUrl);
@@ -128,6 +130,12 @@ const AdminAlerts = () => {
 
     fetchAlerts();
   }, []);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, filter, typeFilter]);
+
   if (loading) {
     return <div className="text-center text-muted-foreground">Loading...</div>;
   }
@@ -141,6 +149,22 @@ const AdminAlerts = () => {
     const matchesType = typeFilter === "all" || alert.alert_type === typeFilter;
 
     return matchesSearch && matchesStatus && matchesType;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil((filteredAlerts?.length || 0) / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedAlerts = filteredAlerts?.slice(startIndex, endIndex);
+
+  // Debug logging
+  console.log('Pagination Debug:', {
+    totalAlerts: alerts?.length,
+    filteredAlertsLength: filteredAlerts?.length,
+    itemsPerPage,
+    totalPages,
+    currentPage,
+    shouldShowPagination: filteredAlerts && filteredAlerts.length > itemsPerPage
   });
 
   const alertTypes = [
@@ -220,7 +244,7 @@ const AdminAlerts = () => {
             There are no alerts
           </div>
         ) : (
-          filteredAlerts?.map((alert) => (
+          paginatedAlerts?.map((alert) => (
             <Card key={alert.id}>
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
@@ -304,6 +328,61 @@ const AdminAlerts = () => {
           ))
         )}
       </div>
+
+      {/* Pagination Controls */}
+      {filteredAlerts && filteredAlerts.length > 0 && (
+        <div className="flex items-center justify-between border-t pt-4">
+          <div className="text-sm text-muted-foreground">
+            {filteredAlerts.length > itemsPerPage ? (
+              <>Showing {startIndex + 1} to {Math.min(endIndex, filteredAlerts.length)} of{" "}</>
+            ) : (
+              <>Showing all </>
+            )}
+            {filteredAlerts.length} alerts
+          </div>
+          {totalPages > 1 && (
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(page => {
+                    const start = Math.max(1, currentPage - 2);
+                    const end = Math.min(totalPages, currentPage + 2);
+                    return page >= start && page <= end;
+                  })
+                  .map(page => (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-8 h-8 p-0"
+                    >
+                      {page}
+                    </Button>
+                  ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       <VideoPlayModal
         open={videoModalOpen}
