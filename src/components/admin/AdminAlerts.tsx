@@ -14,8 +14,14 @@ import { Search, Calendar, Check, X, Play, ChevronLeft, ChevronRight, Trash2 } f
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayModal from "./VideoPlayModal";
 import { toast } from "@/hooks/use-toast";
-import { alertsService, Alert } from "@/lib/api/alertsService";
 import { Checkbox } from "@/components/ui/checkbox";
+import { 
+  useReviewerAllAlerts, 
+  useConfirmAlert, 
+  useMarkAsFalsePositive, 
+  useDeleteAlert, 
+  useDeleteMultipleAlerts 
+} from "@/hooks/useAlerts";
 
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
@@ -43,16 +49,19 @@ const AdminAlerts = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState("all"); // all, pending, confirmed, false_positive
   const [typeFilter, setTypeFilter] = useState("all");
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [alerts, setAlerts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [videoModalOpen, setVideoModalOpen] = useState(false);
   const [currentVideo, setCurrentVideo] = useState("");
   const [currentAlertType, setCurrentAlertType] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [selectedAlerts, setSelectedAlerts] = useState<string[]>([]);
+
+  // React Query hooks
+  const { data: alerts = [], isLoading: loading, error } = useReviewerAllAlerts();
+  const confirmAlertMutation = useConfirmAlert();
+  const markAsFalsePositiveMutation = useMarkAsFalsePositive();
+  const deleteAlertMutation = useDeleteAlert();
+  const deleteMultipleAlertsMutation = useDeleteMultipleAlerts();
 
   const handlePlayVideo = (videoUrl: string, alertType: string) => {
     setCurrentVideo(videoUrl);
@@ -61,56 +70,24 @@ const AdminAlerts = () => {
   };
 
   const handleConfirmAlert = async (alertId: string) => {
-    try {
-      await alertsService.confirmAlert(alertId);
-      // Refresh the alerts list
-      const data = await alertsService.getReviewerAllAlerts();
-      const alertsData = extractAlertsData(data);
-      setAlerts(alertsData);
-    } catch (error) {
-      console.error("Failed to confirm alert:", error);
-    }
+    confirmAlertMutation.mutate(alertId);
   };
 
   const handleMarkAsFalsePositive = async (alertId: string) => {
-    try {
-      await alertsService.markAsFalsePositive(alertId);
-      // Refresh the alerts list
-      const data = await alertsService.getReviewerAllAlerts();
-      const alertsData = extractAlertsData(data);
-      setAlerts(alertsData);
-    } catch (error) {
-      console.error("Failed to mark alert as false positive:", error);
-    }
+    markAsFalsePositiveMutation.mutate(alertId);
   };
 
   const handleDeleteAlert = async (alertId: string) => {
-    try {
-      await alertsService.deleteAlert(alertId);
-      // Refresh the alerts list
-      const data = await alertsService.getReviewerAllAlerts();
-      const alertsData = extractAlertsData(data);
-      setAlerts(alertsData);
-      // Remove from selected alerts if it was selected
-      setSelectedAlerts(prev => prev.filter(id => id !== alertId));
-    } catch (error) {
-      console.error("Failed to delete alert:", error);
-    }
+    deleteAlertMutation.mutate(alertId);
+    // Remove from selected alerts if it was selected
+    setSelectedAlerts(prev => prev.filter(id => id !== alertId));
   };
 
   const handleDeleteMultiple = async () => {
     if (selectedAlerts.length === 0) return;
     
-    try {
-      await alertsService.deleteMultipleAlerts(selectedAlerts);
-      // Refresh the alerts list
-      const data = await alertsService.getReviewerAllAlerts();
-      const alertsData = extractAlertsData(data);
-      setAlerts(alertsData);
-      setSelectedAlerts([]);
-    } catch (error) {
-      console.error("Failed to delete multiple alerts:", error);
-    }
+    deleteMultipleAlertsMutation.mutate(selectedAlerts);
+    setSelectedAlerts([]);
   };
 
   const handleSelectAll = () => {
@@ -130,47 +107,16 @@ const AdminAlerts = () => {
     );
   };
 
+  // Handle error display
   useEffect(() => {
-    const fetchAlerts = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-
-        // Fetch alerts from the reviewer all endpoint
-        const data = await alertsService.getReviewerAllAlerts();
-        console.log("Fetched alerts:", data);
-        
-        // Handle different possible data structures
-        const alertsData = extractAlertsData(data);
-        
-        if (alertsData.length === 0 && data && !Array.isArray(data)) {
-          // Handle unexpected data format
-          setError("Failed to load alerts. Please try again.");
-          toast({
-            title: "Error",
-            description: "Failed to load alerts from the server",
-            variant: "destructive",
-          });
-          return;
-        }
-        
-        // Set the alerts state directly with the fetched data
-        setAlerts(alertsData);
-      } catch (err) {
-        console.error("Failed to fetch alerts:", err);
-        setError("Failed to load alerts. Please try again.");
-        toast({
-          title: "Error",
-          description: "Failed to load alerts from the server",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAlerts();
-  }, []);
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to load alerts from the server",
+        variant: "destructive",
+      });
+    }
+  }, [error]);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -181,7 +127,10 @@ const AdminAlerts = () => {
   if (loading) {
     return <div className="text-center text-muted-foreground">Loading...</div>;
   }
-  const filteredAlerts = alerts?.filter((alert) => {
+  // Extract alerts data from various response formats
+  const alertsData = extractAlertsData(alerts);
+
+  const filteredAlerts = alertsData?.filter((alert) => {
     const matchesSearch =
       (alert.alert_type?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
       (alert.username?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
@@ -201,7 +150,7 @@ const AdminAlerts = () => {
 
   // Debug logging
   console.log('Pagination Debug:', {
-    totalAlerts: alerts?.length,
+    totalAlerts: alertsData?.length,
     filteredAlertsLength: filteredAlerts?.length,
     itemsPerPage,
     totalPages,
@@ -255,25 +204,25 @@ const AdminAlerts = () => {
             <TabsTrigger value="all">
               All
               <Badge variant="secondary" className="ml-2">
-                {alerts.length}
+                {alertsData.length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="pending_review">
               Pending
               <Badge variant="secondary" className="ml-2">
-                {alerts.filter((a) => a.status === "pending_review").length}
+                {alertsData.filter((a) => a.status === "pending_review").length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="confirmed">
               Confirmed
               <Badge variant="secondary" className="ml-2">
-                {alerts.filter((a) => a.status === "confirmed").length}
+                {alertsData.filter((a) => a.status === "confirmed").length}
               </Badge>
             </TabsTrigger>
             <TabsTrigger value="false_positive">
               False Positive
               <Badge variant="secondary" className="ml-2">
-                {alerts.filter((a) => a.status === "false_positive").length}
+                {alertsData.filter((a) => a.status === "false_positive").length}
               </Badge>
             </TabsTrigger>
           </TabsList>
