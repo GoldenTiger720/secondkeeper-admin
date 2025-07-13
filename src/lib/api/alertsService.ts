@@ -3,9 +3,12 @@ import { toast } from "@/hooks/use-toast";
 
 export interface Alert {
   id: string;
-  username: string;
+  user_email: string;
   camera_name: string;
   camera_id?: string;
+  camera: {
+    name: string;
+  };
   alert_type:
     | "fall"
     | "violence"
@@ -145,7 +148,8 @@ export const alertsService = {
     try {
       const url = alertType ? `/alerts/training/?alert_type=${alertType}` : "/alerts/training/";
       const response = await apiClient.get(url);
-      return response.data;
+      console.log(response.data.data)
+      return response.data.data;
     } catch (error) {
       console.error("Error fetching training data:", error);
       toast({
@@ -248,11 +252,11 @@ export const alertsService = {
       return response.data;
     } catch (error) {
       console.error("Error fetching training results:", error);
-      toast({
-        title: "Error",
-        description: "Could not load training results",
-        variant: "destructive",
-      });
+      // toast({
+      //   title: "Error",
+      //   description: "Could not load training results",
+      //   variant: "destructive",
+      // });
       throw error;
     }
   },

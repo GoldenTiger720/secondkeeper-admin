@@ -5,13 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Search,
-  Download,
   Trash2,
-  Calendar,
-  User,
-  Camera,
-  Check,
-  Play,
   Save,
   Brain,
   Image,
@@ -22,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, alertsService } from "@/lib/api/alertsService";
 import { toast } from "@/hooks/use-toast";
-import VideoPlayModal from "./VideoPlayModal";
+import ImageViewModal from "./ImageViewModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,6 +27,22 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -71,35 +81,49 @@ const AdminTraining = () => {
   const [selectedAccurateItems, setSelectedAccurateItems] = useState<string[]>([]);
   const [selectedFalsePositiveItems, setSelectedFalsePositiveItems] = useState<string[]>([]);
   const [trainingData, setTrainingData] = useState<TrainingData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [videoModalOpen, setVideoModalOpen] = useState(false);
-  const [currentVideo, setCurrentVideo] = useState("");
   const [currentAlertType, setCurrentAlertType] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemsToDelete, setItemsToDelete] = useState<string[]>([]);
   const [trainingResults, setTrainingResults] = useState<Record<string, TrainingResults>>({});
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [currentImage, setCurrentImage] = useState("");
+  const [currentImageMetadata, setCurrentImageMetadata] = useState<{
+    date: string;
+    user_email: string;
+    camera: string;
+  } | undefined>();
+  const [accurateCurrentPage, setAccurateCurrentPage] = useState(1);
+  const [falsePositiveCurrentPage, setFalsePositiveCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     fetchTrainingData();
     fetchTrainingResults();
+    setAccurateCurrentPage(1);
+    setFalsePositiveCurrentPage(1);
   }, [selectedTab]);
+
+  useEffect(() => {
+    setAccurateCurrentPage(1);
+    setFalsePositiveCurrentPage(1);
+  }, [searchQuery]);
 
   const fetchTrainingData = async () => {
     try {
-      setLoading(true);
       const data = await alertsService.getTrainingData(selectedTab);
       
       // Transform data to include accuracy status
       const transformedData: TrainingData[] = data.map(alert => ({
         ...alert,
-        isAccurate: alert.status === "confirmed"
+        isAccurate: alert.status === "confirmed",
+        camera: {
+          name: alert.camera.name
+        }
       }));
       
       setTrainingData(transformedData);
     } catch (error) {
       console.error("Failed to fetch training data:", error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -112,10 +136,16 @@ const AdminTraining = () => {
     }
   };
 
-  const handlePlayVideo = (videoUrl: string, alertType: string) => {
-    setCurrentVideo(videoUrl);
-    setCurrentAlertType(alertType);
-    setVideoModalOpen(true);
+
+  const handleViewImage = (item: TrainingData) => {
+    setCurrentImage(`http://api.secondkeeper.com${item.thumbnail}`);
+    setCurrentAlertType(item.alert_type);
+    setCurrentImageMetadata({
+      date: formatDate(item.created_at),
+      user_email: item.user_email,
+      camera: item.camera.name,
+    });
+    setImageModalOpen(true);
   };
 
   const accurateData = trainingData.filter(item => item.isAccurate);
@@ -124,8 +154,8 @@ const AdminTraining = () => {
   const filteredAccurateData = accurateData.filter((item) => {
     const matchesSearch =
       item.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.camera_name.toLowerCase().includes(searchQuery.toLowerCase());
+      item.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.camera.name.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesSearch;
   });
@@ -133,11 +163,23 @@ const AdminTraining = () => {
   const filteredFalsePositiveData = falsePositiveData.filter((item) => {
     const matchesSearch =
       item.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.username.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.camera_name.toLowerCase().includes(searchQuery.toLowerCase());
+      item.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.camera.name.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesSearch;
   });
+
+  // Pagination calculations for accurate data
+  const accurateTotalPages = Math.ceil(filteredAccurateData.length / itemsPerPage);
+  const accurateStartIndex = (accurateCurrentPage - 1) * itemsPerPage;
+  const accurateEndIndex = accurateStartIndex + itemsPerPage;
+  const paginatedAccurateData = filteredAccurateData.slice(accurateStartIndex, accurateEndIndex);
+
+  // Pagination calculations for false positive data
+  const falsePositiveTotalPages = Math.ceil(filteredFalsePositiveData.length / itemsPerPage);
+  const falsePositiveStartIndex = (falsePositiveCurrentPage - 1) * itemsPerPage;
+  const falsePositiveEndIndex = falsePositiveStartIndex + itemsPerPage;
+  const paginatedFalsePositiveData = filteredFalsePositiveData.slice(falsePositiveStartIndex, falsePositiveEndIndex);
 
   const toggleSelectAccurateItem = (id: string) => {
     setSelectedAccurateItems((prev) =>
@@ -240,6 +282,53 @@ const AdminTraining = () => {
 
   const currentResults = trainingResults[selectedTab];
 
+  const renderPagination = (currentPage: number, totalPages: number, totalItems: number, onPageChange: (page: number) => void) => {
+    if (totalPages <= 1) return null;
+
+    const pageNumbers = [];
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
+
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
+
+    return (
+      <div className="flex items-center justify-between mt-4">
+        <div className="text-sm text-muted-foreground">
+          Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, totalItems)} of {totalItems} items
+        </div>
+        <Pagination>
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious 
+                onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                className={currentPage === 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+            {pageNumbers.map((number) => (
+              <PaginationItem key={number}>
+                <PaginationLink
+                  onClick={() => onPageChange(number)}
+                  isActive={currentPage === number}
+                  className="cursor-pointer"
+                >
+                  {number}
+                </PaginationLink>
+              </PaginationItem>
+            ))}
+            <PaginationItem>
+              <PaginationNext 
+                onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                className={currentPage === totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -322,68 +411,59 @@ const AdminTraining = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredAccurateData.map((item) => (
-                    <Card
-                      key={item.id}
-                      className={`overflow-hidden border ${
-                        selectedAccurateItems.includes(item.id) ? "ring-2 ring-primary" : ""
-                      }`}
-                    >
-                      <div className="relative">
-                        <img
-                          src={item.thumbnail}
-                          alt={item.alert_type}
-                          className="w-full h-40 object-cover"
-                        />
-                        <div className="absolute top-2 right-2">
-                          <Badge className="bg-green-500">Accurate Detection</Badge>
-                        </div>
-                        <div className="absolute top-2 left-2">
-                          <Checkbox
-                            checked={selectedAccurateItems.includes(item.id)}
-                            onCheckedChange={() => toggleSelectAccurateItem(item.id)}
-                            className="bg-white/80 border-white/80"
-                          />
-                        </div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="opacity-0 hover:opacity-90 transition-opacity"
-                            onClick={() => handlePlayVideo(item.video_file || "", item.alert_type)}
-                          >
-                            <Play className="h-4 w-4 mr-1" /> Play
-                          </Button>
-                        </div>
-                      </div>
-                      <CardContent className="p-4">
-                        <div className="space-y-1 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{formatDate(item.created_at)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{item.username}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{item.camera_name}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                  {filteredAccurateData.length === 0 && (
-                    <div className="col-span-2 text-center p-12">
-                      <div className="text-muted-foreground">
-                        No accurate detection data found.
-                      </div>
-                    </div>
-                  )}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead className="w-24">Thumbnail</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Camera</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedAccurateData.map((item) => (
+                        <TableRow
+                          key={item.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleViewImage(item)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedAccurateItems.includes(item.id)}
+                              onCheckedChange={() => toggleSelectAccurateItem(item.id)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <img
+                              src={`http://api.secondkeeper.com${item.thumbnail}`}
+                              alt={item.alert_type}
+                              className="w-16 h-16 object-cover rounded"
+                            />
+                          </TableCell>
+                          <TableCell>{formatDate(item.created_at)}</TableCell>
+                          <TableCell>{item.user_email}</TableCell>
+                          <TableCell>{item.camera.name}</TableCell>
+                          <TableCell>
+                            <Badge className="bg-green-500">Accurate Detection</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredAccurateData.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8">
+                            <div className="text-muted-foreground">
+                              No accurate detection data found.
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
+                {renderPagination(accurateCurrentPage, accurateTotalPages, filteredAccurateData.length, setAccurateCurrentPage)}
               </CardContent>
             </Card>
 
@@ -440,68 +520,59 @@ const AdminTraining = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {filteredFalsePositiveData.map((item) => (
-                    <Card
-                      key={item.id}
-                      className={`overflow-hidden border ${
-                        selectedFalsePositiveItems.includes(item.id) ? "ring-2 ring-primary" : ""
-                      }`}
-                    >
-                      <div className="relative">
-                        <img
-                          src={item.thumbnail}
-                          alt={item.alert_type}
-                          className="w-full h-40 object-cover"
-                        />
-                        <div className="absolute top-2 right-2">
-                          <Badge variant="destructive">False Positive</Badge>
-                        </div>
-                        <div className="absolute top-2 left-2">
-                          <Checkbox
-                            checked={selectedFalsePositiveItems.includes(item.id)}
-                            onCheckedChange={() => toggleSelectFalsePositiveItem(item.id)}
-                            className="bg-white/80 border-white/80"
-                          />
-                        </div>
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="opacity-0 hover:opacity-90 transition-opacity"
-                            onClick={() => handlePlayVideo(item.video_file || "", item.alert_type)}
-                          >
-                            <Play className="h-4 w-4 mr-1" /> Play
-                          </Button>
-                        </div>
-                      </div>
-                      <CardContent className="p-4">
-                        <div className="space-y-1 text-sm">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{formatDate(item.created_at)}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{item.username}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Camera className="h-3.5 w-3.5 text-muted-foreground" />
-                            <span>{item.camera_name}</span>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                  {filteredFalsePositiveData.length === 0 && (
-                    <div className="col-span-2 text-center p-12">
-                      <div className="text-muted-foreground">
-                        No false positive data found.
-                      </div>
-                    </div>
-                  )}
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12"></TableHead>
+                        <TableHead className="w-24">Thumbnail</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Camera</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedFalsePositiveData.map((item) => (
+                        <TableRow
+                          key={item.id}
+                          className="cursor-pointer hover:bg-muted/50"
+                          onClick={() => handleViewImage(item)}
+                        >
+                          <TableCell onClick={(e) => e.stopPropagation()}>
+                            <Checkbox
+                              checked={selectedFalsePositiveItems.includes(item.id)}
+                              onCheckedChange={() => toggleSelectFalsePositiveItem(item.id)}
+                            />
+                          </TableCell>
+                          <TableCell>
+                            <img
+                              src={`http://api.secondkeeper.com${item.thumbnail}`}
+                              alt={item.alert_type}
+                              className="w-16 h-16 object-cover rounded"
+                            />
+                          </TableCell>
+                          <TableCell>{formatDate(item.created_at)}</TableCell>
+                          <TableCell>{item.user_email}</TableCell>
+                          <TableCell>{item.camera.name}</TableCell>
+                          <TableCell>
+                            <Badge variant="destructive">False Positive</Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredFalsePositiveData.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={6} className="text-center py-8">
+                            <div className="text-muted-foreground">
+                              No false positive data found.
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
                 </div>
+                {renderPagination(falsePositiveCurrentPage, falsePositiveTotalPages, filteredFalsePositiveData.length, setFalsePositiveCurrentPage)}
               </CardContent>
             </Card>
 
@@ -603,11 +674,12 @@ const AdminTraining = () => {
         </CardContent>
       </Card>
 
-      <VideoPlayModal
-        open={videoModalOpen}
-        onOpenChange={setVideoModalOpen}
-        videoUrl={currentVideo}
+      <ImageViewModal
+        open={imageModalOpen}
+        onOpenChange={setImageModalOpen}
+        imageUrl={currentImage}
         title={currentAlertType}
+        metadata={currentImageMetadata}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
