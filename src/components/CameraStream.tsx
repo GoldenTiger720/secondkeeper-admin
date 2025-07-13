@@ -17,6 +17,7 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  const [isRtsp, setIsRtsp] = useState(false);
 
   useEffect(() => {
     const fetchCameraData = async () => {
@@ -24,23 +25,34 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
         const response = await camerasService.getCamera(cameraId);
         if (response.success) {
           setCamera(response.data);
+          
+          // Check if camera URL is RTSP
+          const isRtspUrl = response.data.stream_url.startsWith("rtsp://");
+          setIsRtsp(isRtspUrl);
 
-          // Start the stream
-          try {
-            const streamResponse = await camerasService.startStream(
-              cameraId,
-              "medium"
-            );
-            console.log("Stream response:", streamResponse);
-            if (streamResponse.success) {
-              const hlsUrl = `https://api.secondkeeper.com/media/streams/${cameraId}/index.m3u8`;
-              setStreamUrl(hlsUrl);
-            } else {
-              setError("Failed to start camera stream");
+          if (isRtspUrl) {
+            // For RTSP URLs, use direct streaming endpoint with auth
+            const baseUrl = import.meta.env.VITE_API_BASE_URL || "https://api.secondkeeper.com/api";
+            const directStreamUrl = `${baseUrl}/cameras/${cameraId}/stream/?quality=medium`;
+            setStreamUrl(directStreamUrl);
+          } else {
+            // For non-RTSP URLs, start streaming first then use HLS
+            try {
+              const streamResponse = await camerasService.startStream(
+                cameraId,
+                "medium"
+              );
+              console.log("Stream response:", streamResponse);
+              if (streamResponse.success) {
+                const hlsUrl = `https://api.secondkeeper.com/media/streams/${cameraId}/index.m3u8`;
+                setStreamUrl(hlsUrl);
+              } else {
+                setError("Failed to start camera stream");
+              }
+            } catch (streamErr) {
+              console.error("Error starting stream:", streamErr);
+              setError("Failed to initialize camera stream");
             }
-          } catch (streamErr) {
-            console.error("Error starting stream:", streamErr);
-            setError("Failed to initialize camera stream");
           }
         } else {
           setError("Failed to retrieve camera data");
@@ -65,62 +77,93 @@ export const CameraStream: React.FC<CameraStreamProps> = ({
   }, [cameraId]);
 
   useEffect(() => {
-    console.log("Stream URL:", streamUrl);
+    console.log("Stream URL:", streamUrl, "Is RTSP:", isRtsp);
     if (!streamUrl || !videoRef.current) return;
 
     const video = videoRef.current;
 
-    if (Hls.isSupported()) {
-      const hls = new Hls({
-        debug: false,
-        enableWorker: true,
-        lowLatencyMode: true,
-        maxLoadingDelay: 4,
-        maxBufferLength: 30,
-        maxBufferSize: 60 * 1000 * 1000,
-      });
-
-      hls.loadSource(streamUrl);
-      hls.attachMedia(video);
-
-      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+    if (isRtsp) {
+      // For RTSP streams, add auth token as URL parameter
+      const token = localStorage.getItem("secondkeeper_access_token");
+      const authenticatedUrl = `${streamUrl}&token=${encodeURIComponent(token)}`;
+      video.src = authenticatedUrl;
+      
+      const handleLoadedMetadata = () => {
         video.play().catch((e) => {
           console.warn("Autoplay prevented:", e);
         });
-      });
+      };
 
-      hls.on(Hls.Events.ERROR, (event, data) => {
-        console.error("HLS error:", data);
-        if (data.fatal) {
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              setError("Network error occurred while loading stream");
-              break;
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              setError("Media error occurred while playing stream");
-              break;
-            default:
-              setError("Fatal streaming error occurred");
-              break;
-          }
+      const handleError = (e: Event) => {
+        // Only log error if video src is not empty (component is not unmounting)
+        if (video.src) {
+          console.error("Video error:", e);
+          setError("Failed to load RTSP stream");
         }
-      });
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("error", handleError);
 
       return () => {
-        hls.destroy();
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("error", handleError);
+        video.src = "";
       };
-    } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      // For Safari
-      video.src = streamUrl;
-      video.addEventListener("loadedmetadata", () => {
-        video.play().catch((e) => {
-          console.warn("Autoplay prevented:", e);
-        });
-      });
     } else {
-      setError("Your browser doesn't support HLS streaming");
+      // For non-RTSP streams, use HLS
+      if (Hls.isSupported()) {
+        const hls = new Hls({
+          debug: false,
+          enableWorker: true,
+          lowLatencyMode: true,
+          maxLoadingDelay: 4,
+          maxBufferLength: 30,
+          maxBufferSize: 60 * 1000 * 1000,
+        });
+
+        hls.loadSource(streamUrl);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch((e) => {
+            console.warn("Autoplay prevented:", e);
+          });
+        });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          console.error("HLS error:", data);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                setError("Network error occurred while loading stream");
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                setError("Media error occurred while playing stream");
+                break;
+              default:
+                setError("Fatal streaming error occurred");
+                break;
+            }
+          }
+        });
+
+        return () => {
+          hls.destroy();
+        };
+      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+        // For Safari
+        video.src = streamUrl;
+        video.addEventListener("loadedmetadata", () => {
+          video.play().catch((e) => {
+            console.warn("Autoplay prevented:", e);
+          });
+        });
+      } else {
+        setError("Your browser doesn't support HLS streaming");
+      }
     }
-  }, [streamUrl]);
+  }, [streamUrl, isRtsp]);
 
   if (isLoading) {
     return (
