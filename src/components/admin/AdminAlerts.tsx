@@ -10,11 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Calendar, Check, X, Play, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Calendar, Check, X, Play, ChevronLeft, ChevronRight, Trash2 } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayModal from "./VideoPlayModal";
 import { toast } from "@/hooks/use-toast";
 import { alertsService, Alert } from "@/lib/api/alertsService";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const formatDate = (dateString: string): string => {
   const date = new Date(dateString);
@@ -39,6 +40,7 @@ const AdminAlerts = () => {
   const [currentAlertType, setCurrentAlertType] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+  const [selectedAlerts, setSelectedAlerts] = useState<string[]>([]);
 
   const handlePlayVideo = (videoUrl: string, alertType: string) => {
     setCurrentVideo(videoUrl);
@@ -82,6 +84,66 @@ const AdminAlerts = () => {
     } catch (error) {
       console.error("Failed to mark alert as false positive:", error);
     }
+  };
+
+  const handleDeleteAlert = async (alertId: string) => {
+    try {
+      await alertsService.deleteAlert(alertId);
+      // Refresh the alerts list
+      const data = await alertsService.getReviewerAllAlerts();
+      let alertsData = [];
+      if (Array.isArray(data)) {
+        alertsData = data;
+      } else if (data.results && Array.isArray(data.results)) {
+        alertsData = data.results;
+      } else if (data.data && Array.isArray(data.data)) {
+        alertsData = data.data;
+      }
+      setAlerts(alertsData);
+      // Remove from selected alerts if it was selected
+      setSelectedAlerts(prev => prev.filter(id => id !== alertId));
+    } catch (error) {
+      console.error("Failed to delete alert:", error);
+    }
+  };
+
+  const handleDeleteMultiple = async () => {
+    if (selectedAlerts.length === 0) return;
+    
+    try {
+      await alertsService.deleteMultipleAlerts(selectedAlerts);
+      // Refresh the alerts list
+      const data = await alertsService.getReviewerAllAlerts();
+      let alertsData = [];
+      if (Array.isArray(data)) {
+        alertsData = data;
+      } else if (data.results && Array.isArray(data.results)) {
+        alertsData = data.results;
+      } else if (data.data && Array.isArray(data.data)) {
+        alertsData = data.data;
+      }
+      setAlerts(alertsData);
+      setSelectedAlerts([]);
+    } catch (error) {
+      console.error("Failed to delete multiple alerts:", error);
+    }
+  };
+
+  const handleSelectAll = () => {
+    const currentTabAlerts = filteredAlerts || [];
+    if (selectedAlerts.length === currentTabAlerts.length) {
+      setSelectedAlerts([]);
+    } else {
+      setSelectedAlerts(currentTabAlerts.map(alert => alert.id));
+    }
+  };
+
+  const handleSelectAlert = (alertId: string) => {
+    setSelectedAlerts(prev => 
+      prev.includes(alertId) 
+        ? prev.filter(id => id !== alertId)
+        : [...prev, alertId]
+    );
   };
 
   useEffect(() => {
@@ -134,6 +196,7 @@ const AdminAlerts = () => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedAlerts([]);
   }, [searchQuery, filter, typeFilter]);
 
   if (loading) {
@@ -238,6 +301,31 @@ const AdminAlerts = () => {
         </Tabs>
       </div>
 
+      {filteredAlerts && filteredAlerts.length > 0 && (
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={selectedAlerts.length === filteredAlerts.length}
+              onCheckedChange={handleSelectAll}
+              id="select-all"
+            />
+            <label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+              Select All ({selectedAlerts.length} selected)
+            </label>
+          </div>
+          {selectedAlerts.length > 0 && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleDeleteMultiple}
+            >
+              <Trash2 className="h-4 w-4 mr-1" />
+              Delete Selected ({selectedAlerts.length})
+            </Button>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredAlerts && filteredAlerts.length === 0 ? (
           <div className="col-span-full text-center text-muted-foreground py-8">
@@ -248,24 +336,41 @@ const AdminAlerts = () => {
             <Card key={alert.id}>
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-center">
-                  <CardTitle className="text-base font-medium">
-                    {alert.alert_type}
-                  </CardTitle>
-                  <Badge
-                    variant={
-                      alert.status === "confirmed"
-                        ? "outline"
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={selectedAlerts.includes(alert.id)}
+                      onCheckedChange={() => handleSelectAlert(alert.id)}
+                    />
+                    <CardTitle className="text-base font-medium">
+                      {alert.alert_type}
+                    </CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant={
+                        alert.status === "confirmed"
+                          ? "outline"
+                          : alert.status === "pending_review"
+                          ? "secondary"
+                          : "destructive"
+                      }
+                    >
+                      {alert.status === "confirmed"
+                        ? "Confirmed"
                         : alert.status === "pending_review"
-                        ? "secondary"
-                        : "destructive"
-                    }
-                  >
-                    {alert.status === "confirmed"
-                      ? "Confirmed"
-                      : alert.status === "pending_review"
-                      ? "Pending Review"
-                      : "False Positive"}
-                  </Badge>
+                        ? "Pending Review"
+                        : "False Positive"}
+                    </Badge>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => handleDeleteAlert(alert.id)}
+                      title="Delete alert"
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex items-center text-sm text-muted-foreground">
                   <Calendar className="h-3.5 w-3.5 mr-1" />

@@ -260,4 +260,42 @@ export const alertsService = {
       throw error;
     }
   },
+
+  deleteAlert: async (alertId: string): Promise<void> => {
+    try {
+      await apiClient.delete(`/alerts/${alertId}/`);
+      
+      toast({
+        title: "Alert Deleted",
+        description: "Alert has been deleted successfully.",
+      });
+    } catch (error) {
+      console.error("Error deleting alert:", error);
+      toast({
+        title: "Error",
+        description: "Could not delete alert",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  },
+
+  deleteMultipleAlerts: async (alertIds: string[]): Promise<void> => {
+    try {
+      await apiClient.post("/alerts/delete-multiple/", { alert_ids: alertIds });
+      
+      toast({
+        title: "Alerts Deleted",
+        description: `${alertIds.length} alerts have been deleted successfully.`,
+      });
+    } catch (error) {
+      console.error("Error deleting multiple alerts:", error);
+      toast({
+        title: "Error",
+        description: "Could not delete alerts",
+        variant: "destructive",
+      });
+      throw error;
+    }
+  },
 };
