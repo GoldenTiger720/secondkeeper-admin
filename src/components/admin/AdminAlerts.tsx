@@ -27,6 +27,18 @@ const formatDate = (dateString: string): string => {
   }).format(date);
 };
 
+// Helper function to extract alerts array from various response formats
+const extractAlertsData = (data: any): any[] => {
+  if (Array.isArray(data)) {
+    return data;
+  } else if (data?.results && Array.isArray(data.results)) {
+    return data.results;
+  } else if (data?.data && Array.isArray(data.data)) {
+    return data.data;
+  }
+  return [];
+};
+
 const AdminAlerts = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState("all"); // all, pending, confirmed, false_positive
@@ -53,14 +65,7 @@ const AdminAlerts = () => {
       await alertsService.confirmAlert(alertId);
       // Refresh the alerts list
       const data = await alertsService.getReviewerAllAlerts();
-      let alertsData = [];
-      if (Array.isArray(data)) {
-        alertsData = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        alertsData = data.results;
-      } else if (data.data && Array.isArray(data.data)) {
-        alertsData = data.data;
-      }
+      const alertsData = extractAlertsData(data);
       setAlerts(alertsData);
     } catch (error) {
       console.error("Failed to confirm alert:", error);
@@ -72,14 +77,7 @@ const AdminAlerts = () => {
       await alertsService.markAsFalsePositive(alertId);
       // Refresh the alerts list
       const data = await alertsService.getReviewerAllAlerts();
-      let alertsData = [];
-      if (Array.isArray(data)) {
-        alertsData = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        alertsData = data.results;
-      } else if (data.data && Array.isArray(data.data)) {
-        alertsData = data.data;
-      }
+      const alertsData = extractAlertsData(data);
       setAlerts(alertsData);
     } catch (error) {
       console.error("Failed to mark alert as false positive:", error);
@@ -91,14 +89,7 @@ const AdminAlerts = () => {
       await alertsService.deleteAlert(alertId);
       // Refresh the alerts list
       const data = await alertsService.getReviewerAllAlerts();
-      let alertsData = [];
-      if (Array.isArray(data)) {
-        alertsData = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        alertsData = data.results;
-      } else if (data.data && Array.isArray(data.data)) {
-        alertsData = data.data;
-      }
+      const alertsData = extractAlertsData(data);
       setAlerts(alertsData);
       // Remove from selected alerts if it was selected
       setSelectedAlerts(prev => prev.filter(id => id !== alertId));
@@ -114,14 +105,7 @@ const AdminAlerts = () => {
       await alertsService.deleteMultipleAlerts(selectedAlerts);
       // Refresh the alerts list
       const data = await alertsService.getReviewerAllAlerts();
-      let alertsData = [];
-      if (Array.isArray(data)) {
-        alertsData = data;
-      } else if (data.results && Array.isArray(data.results)) {
-        alertsData = data.results;
-      } else if (data.data && Array.isArray(data.data)) {
-        alertsData = data.data;
-      }
+      const alertsData = extractAlertsData(data);
       setAlerts(alertsData);
       setSelectedAlerts([]);
     } catch (error) {
@@ -157,14 +141,9 @@ const AdminAlerts = () => {
         console.log("Fetched alerts:", data);
         
         // Handle different possible data structures
-        let alertsData = [];
-        if (Array.isArray(data)) {
-          alertsData = data;
-        } else if (data.results && Array.isArray(data.results)) {
-          alertsData = data.results;
-        } else if (data.data && Array.isArray(data.data)) {
-          alertsData = data.data;
-        } else {
+        const alertsData = extractAlertsData(data);
+        
+        if (alertsData.length === 0 && data && !Array.isArray(data)) {
           // Handle unexpected data format
           setError("Failed to load alerts. Please try again.");
           toast({
