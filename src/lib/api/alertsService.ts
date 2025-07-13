@@ -16,10 +16,10 @@ export interface Alert {
     | "fire_smoke"
     | "unauthorized_face"
     | "other";
-  status: "pending_review" | "confirmed" | "dismissed" | "false_positive";
+  alert_status: "pending_review" | "confirmed" | "dismissed" | "false_positive";
   video_file?: string;
   thumbnail?: string;
-  created_at: string;
+  detection_time: string;
 }
 
 export const alertsService = {
@@ -148,7 +148,7 @@ export const alertsService = {
     try {
       const url = alertType ? `/alerts/training/?alert_type=${alertType}` : "/alerts/training/";
       const response = await apiClient.get(url);
-      console.log(response.data.data)
+      // console.log(response.data.data)
       return response.data.data;
     } catch (error) {
       console.error("Error fetching training data:", error);

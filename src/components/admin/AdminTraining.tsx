@@ -112,14 +112,16 @@ const AdminTraining = () => {
     try {
       const data = await alertsService.getTrainingData(selectedTab);
       
+      
       // Transform data to include accuracy status
       const transformedData: TrainingData[] = data.map(alert => ({
         ...alert,
-        isAccurate: alert.status === "confirmed",
+        isAccurate: alert.alert_status === "confirmed",
         camera: {
-          name: alert.camera.name
+          name: alert.camera_name
         }
       }));
+      console.log("=======> ", transformedData);
       
       setTrainingData(transformedData);
     } catch (error) {
@@ -141,7 +143,7 @@ const AdminTraining = () => {
     setCurrentImage(`http://api.secondkeeper.com${item.thumbnail}`);
     setCurrentAlertType(item.alert_type);
     setCurrentImageMetadata({
-      date: formatDate(item.created_at),
+      date: formatDate(item.detection_time),
       user_email: item.user_email,
       camera: item.camera.name,
     });
@@ -155,7 +157,7 @@ const AdminTraining = () => {
     const matchesSearch =
       item.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.camera.name.toLowerCase().includes(searchQuery.toLowerCase());
+      item.camera_name.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesSearch;
   });
@@ -164,7 +166,7 @@ const AdminTraining = () => {
     const matchesSearch =
       item.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.camera.name.toLowerCase().includes(searchQuery.toLowerCase());
+      item.camera_name.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesSearch;
   });
@@ -443,7 +445,7 @@ const AdminTraining = () => {
                               className="w-16 h-16 object-cover rounded"
                             />
                           </TableCell>
-                          <TableCell>{formatDate(item.created_at)}</TableCell>
+                          <TableCell>{formatDate(item.detection_time)}</TableCell>
                           <TableCell>{item.user_email}</TableCell>
                           <TableCell>{item.camera.name}</TableCell>
                           <TableCell>
@@ -552,7 +554,7 @@ const AdminTraining = () => {
                               className="w-16 h-16 object-cover rounded"
                             />
                           </TableCell>
-                          <TableCell>{formatDate(item.created_at)}</TableCell>
+                          <TableCell>{formatDate(item.detection_time)}</TableCell>
                           <TableCell>{item.user_email}</TableCell>
                           <TableCell>{item.camera.name}</TableCell>
                           <TableCell>
