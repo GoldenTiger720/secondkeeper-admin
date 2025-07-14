@@ -23,12 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Progress } from "@/components/ui/progress";
 import { 
   useReviewerAllAlerts, 
   useConfirmAlert, 
   useMarkAsFalsePositive, 
-  useDeleteAlert, 
-  useDeleteMultipleAlerts 
+  useDeleteAlert,
+  useDeleteMultipleAlerts
 } from "@/hooks/useAlerts";
 
 const formatDate = (dateString: string): string => {
@@ -66,6 +67,8 @@ const AdminAlerts = () => {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [alertToDelete, setAlertToDelete] = useState<string | null>(null);
   const [deleteMultipleDialogOpen, setDeleteMultipleDialogOpen] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // React Query hooks
   const { data: alerts = [], isLoading: loading, error } = useReviewerAllAlerts();
@@ -95,11 +98,25 @@ const AdminAlerts = () => {
 
   const confirmDeleteAlert = async () => {
     if (alertToDelete) {
-      deleteAlertMutation.mutate(alertToDelete);
-      // Remove from selected alerts if it was selected
-      setSelectedAlerts(prev => prev.filter(id => id !== alertToDelete));
+      setIsDeleting(true);
+      setDeleteProgress({ current: 0, total: 1 });
       setDeleteDialogOpen(false);
-      setAlertToDelete(null);
+      
+      // Simulate progress for better UX
+      setTimeout(() => {
+        setDeleteProgress({ current: 1, total: 1 });
+      }, 200);
+      
+      // Execute optimistic deletion
+      deleteAlertMutation.mutate(alertToDelete);
+      
+      // Remove from selected alerts and complete after short delay
+      setTimeout(() => {
+        setSelectedAlerts(prev => prev.filter(id => id !== alertToDelete));
+        setAlertToDelete(null);
+        setIsDeleting(false);
+        setDeleteProgress({ current: 0, total: 0 });
+      }, 600);
     }
   };
 
@@ -109,9 +126,28 @@ const AdminAlerts = () => {
   };
 
   const confirmDeleteMultiple = async () => {
-    deleteMultipleAlertsMutation.mutate(selectedAlerts);
-    setSelectedAlerts([]);
+    const alertsToDelete = [...selectedAlerts];
+    setIsDeleting(true);
+    setDeleteProgress({ current: 0, total: alertsToDelete.length });
     setDeleteMultipleDialogOpen(false);
+
+    // Execute optimistic deletion immediately
+    deleteMultipleAlertsMutation.mutate(alertsToDelete);
+
+    // Simulate progressive deletion for better UX
+    const progressInterval = 150; // milliseconds per item
+    for (let i = 0; i < alertsToDelete.length; i++) {
+      setTimeout(() => {
+        setDeleteProgress({ current: i + 1, total: alertsToDelete.length });
+      }, (i + 1) * progressInterval);
+    }
+
+    // Complete after all progress steps
+    setTimeout(() => {
+      setSelectedAlerts([]);
+      setIsDeleting(false);
+      setDeleteProgress({ current: 0, total: 0 });
+    }, alertsToDelete.length * progressInterval + 300);
   };
 
   const handleSelectAll = () => {
@@ -502,6 +538,29 @@ const AdminAlerts = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Loading Overlay */}
+      {isDeleting && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-background border rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
+            <div className="text-center space-y-4">
+              <div className="text-lg font-semibold">
+                {deleteProgress.total === 1 ? 'Deleting Alert...' : 'Deleting Alerts...'}
+              </div>
+              <Progress 
+                className="w-full" 
+                value={deleteProgress.total > 0 ? (deleteProgress.current / deleteProgress.total) * 100 : 0}
+              />
+              <div className="text-sm text-muted-foreground">
+                {deleteProgress.total === 1 
+                  ? 'Please wait while we process your request'
+                  : `Processing ${deleteProgress.current} of ${deleteProgress.total} alerts`
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
