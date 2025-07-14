@@ -45,6 +45,12 @@ export const useConfirmAlert = () => {
         );
       });
 
+      // Show optimistic success toast
+      toast({
+        title: "Alert Confirmed",
+        description: "Alert has been confirmed successfully.",
+      });
+
       return { previousAlerts };
     },
     onError: (err, alertId, context) => {
@@ -80,6 +86,12 @@ export const useMarkAsFalsePositive = () => {
         );
       });
 
+      // Show optimistic success toast
+      toast({
+        title: "Alert Marked",
+        description: "Alert has been marked as false positive.",
+      });
+
       return { previousAlerts };
     },
     onError: (err, alertId, context) => {
@@ -113,6 +125,12 @@ export const useDeleteAlert = () => {
         return old.filter((alert: any) => alert.id !== alertId);
       });
 
+      // Show optimistic success toast
+      toast({
+        title: "Alert Deleted",
+        description: "Alert has been deleted successfully.",
+      });
+
       return { previousAlerts };
     },
     onError: (err, alertId, context) => {
@@ -144,6 +162,12 @@ export const useDeleteMultipleAlerts = () => {
       queryClient.setQueryData(ALERT_KEYS.reviewerAll(), (old: any[]) => {
         if (!old) return old;
         return old.filter((alert: any) => !alertIds.includes(alert.id));
+      });
+
+      // Show optimistic success toast
+      toast({
+        title: "Alerts Deleted",
+        description: `${alertIds.length} alerts have been deleted successfully.`,
       });
 
       return { previousAlerts };

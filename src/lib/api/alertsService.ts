@@ -105,20 +105,9 @@ export const alertsService = {
   confirmAlert: async (alertId: string): Promise<Alert> => {
     try {
       const response = await apiClient.post(`/alerts/reviewer/pending/${alertId}/confirm/`);
-
-      toast({
-        title: "Alert Confirmed",
-        description: "Alert has been confirmed successfully.",
-      });
-
       return response.data;
     } catch (error) {
       console.error("Error confirming alert:", error);
-      toast({
-        title: "Error",
-        description: "Could not confirm alert",
-        variant: "destructive",
-      });
       throw error;
     }
   },
@@ -126,20 +115,9 @@ export const alertsService = {
   markAsFalsePositive: async (alertId: string): Promise<Alert> => {
     try {
       const response = await apiClient.post(`/alerts/reviewer/pending/${alertId}/false-positive/`);
-
-      toast({
-        title: "Alert Marked",
-        description: "Alert has been marked as false positive.",
-      });
-
       return response.data;
     } catch (error) {
       console.error("Error marking alert as false positive:", error);
-      toast({
-        title: "Error",
-        description: "Could not mark alert as false positive",
-        variant: "destructive",
-      });
       throw error;
     }
   },
@@ -264,18 +242,8 @@ export const alertsService = {
   deleteAlert: async (alertId: string): Promise<void> => {
     try {
       await apiClient.delete(`/alerts/${alertId}/`);
-      
-      toast({
-        title: "Alert Deleted",
-        description: "Alert has been deleted successfully.",
-      });
     } catch (error) {
       console.error("Error deleting alert:", error);
-      toast({
-        title: "Error",
-        description: "Could not delete alert",
-        variant: "destructive",
-      });
       throw error;
     }
   },
@@ -283,18 +251,8 @@ export const alertsService = {
   deleteMultipleAlerts: async (alertIds: string[]): Promise<void> => {
     try {
       await apiClient.post("/alerts/delete-multiple/", { alert_ids: alertIds });
-      
-      toast({
-        title: "Alerts Deleted",
-        description: `${alertIds.length} alerts have been deleted successfully.`,
-      });
     } catch (error) {
       console.error("Error deleting multiple alerts:", error);
-      toast({
-        title: "Error",
-        description: "Could not delete alerts",
-        variant: "destructive",
-      });
       throw error;
     }
   },
