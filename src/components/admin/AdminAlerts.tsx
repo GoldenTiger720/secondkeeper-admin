@@ -15,6 +15,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import VideoPlayModal from "./VideoPlayModal";
 import { toast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { 
   useReviewerAllAlerts, 
   useConfirmAlert, 
@@ -55,6 +63,9 @@ const AdminAlerts = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [selectedAlerts, setSelectedAlerts] = useState<string[]>([]);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [alertToDelete, setAlertToDelete] = useState<string | null>(null);
+  const [deleteMultipleDialogOpen, setDeleteMultipleDialogOpen] = useState(false);
 
   // React Query hooks
   const { data: alerts = [], isLoading: loading, error } = useReviewerAllAlerts();
@@ -78,16 +89,29 @@ const AdminAlerts = () => {
   };
 
   const handleDeleteAlert = async (alertId: string) => {
-    deleteAlertMutation.mutate(alertId);
-    // Remove from selected alerts if it was selected
-    setSelectedAlerts(prev => prev.filter(id => id !== alertId));
+    setAlertToDelete(alertId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDeleteAlert = async () => {
+    if (alertToDelete) {
+      deleteAlertMutation.mutate(alertToDelete);
+      // Remove from selected alerts if it was selected
+      setSelectedAlerts(prev => prev.filter(id => id !== alertToDelete));
+      setDeleteDialogOpen(false);
+      setAlertToDelete(null);
+    }
   };
 
   const handleDeleteMultiple = async () => {
     if (selectedAlerts.length === 0) return;
-    
+    setDeleteMultipleDialogOpen(true);
+  };
+
+  const confirmDeleteMultiple = async () => {
     deleteMultipleAlertsMutation.mutate(selectedAlerts);
     setSelectedAlerts([]);
+    setDeleteMultipleDialogOpen(false);
   };
 
   const handleSelectAll = () => {
@@ -423,6 +447,61 @@ const AdminAlerts = () => {
         videoUrl={currentVideo}
         title={currentAlertType}
       />
+
+      {/* Delete Single Alert Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Alert</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this alert? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setAlertToDelete(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteAlert}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Multiple Alerts Dialog */}
+      <Dialog open={deleteMultipleDialogOpen} onOpenChange={setDeleteMultipleDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedAlerts.length} Alerts</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete {selectedAlerts.length} selected alerts? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteMultipleDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteMultiple}
+            >
+              Delete All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
