@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Alert, alertsService } from "@/lib/api/alertsService";
+import { trainService, TrainingData as TrainingDataType } from "@/lib/api/trainService";
 import { toast } from "@/hooks/use-toast";
 import ImageViewModal from "./ImageViewModal";
 import {
@@ -54,8 +54,8 @@ const formatDate = (dateString: string) => {
   }).format(date);
 };
 
-interface TrainingData extends Alert {
-  isAccurate: boolean;
+interface TrainingData extends TrainingDataType {
+  id: string;
 }
 
 interface TrainingResults {
@@ -87,11 +87,6 @@ const AdminTraining = () => {
   const [trainingResults, setTrainingResults] = useState<Record<string, TrainingResults>>({});
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [currentImage, setCurrentImage] = useState("");
-  const [currentImageMetadata, setCurrentImageMetadata] = useState<{
-    date: string;
-    user_email: string;
-    camera: string;
-  } | undefined>();
   const [accurateCurrentPage, setAccurateCurrentPage] = useState(1);
   const [falsePositiveCurrentPage, setFalsePositiveCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -110,20 +105,8 @@ const AdminTraining = () => {
 
   const fetchTrainingData = async () => {
     try {
-      const data = await alertsService.getTrainingData(selectedTab);
-      
-      
-      // Transform data to include accuracy status
-      const transformedData: TrainingData[] = data.map(alert => ({
-        ...alert,
-        isAccurate: alert.alert_status === "confirmed",
-        camera: {
-          name: alert.camera_name
-        }
-      }));
-      console.log("=======> ", transformedData);
-      
-      setTrainingData(transformedData);
+      const data = await trainService.getTrainingData(selectedTab);
+      setTrainingData(data as TrainingData[]);
     } catch (error) {
       console.error("Failed to fetch training data:", error);
     }
@@ -131,7 +114,7 @@ const AdminTraining = () => {
 
   const fetchTrainingResults = async () => {
     try {
-      const results = await alertsService.getTrainingResults();
+      const results = await trainService.getTrainingResults();
       setTrainingResults(results);
     } catch (error) {
       console.error("Failed to fetch training results:", error);
@@ -140,33 +123,30 @@ const AdminTraining = () => {
 
 
   const handleViewImage = (item: TrainingData) => {
-    setCurrentImage(`http://api.secondkeeper.com${item.thumbnail}`);
-    setCurrentAlertType(item.alert_type);
-    setCurrentImageMetadata({
-      date: formatDate(item.detection_time),
-      user_email: item.user_email,
-      camera: item.camera.name,
-    });
+    setCurrentImage(`https://api.secondkeeper.com/media/${item.image_url}`);
+    setCurrentAlertType(item.image_type);
     setImageModalOpen(true);
   };
 
-  const accurateData = trainingData.filter(item => item.isAccurate);
-  const falsePositiveData = trainingData.filter(item => !item.isAccurate);
+  const accurateData = trainingData.filter(item => 
+    ["Fire", "Choking", "Fall", "Violence"].includes(item.image_type)
+  );
+  const falsePositiveData = trainingData.filter(item => 
+    ["NonFire", "NonChoking", "NonFall", "NonViolence"].includes(item.image_type)
+  );
 
   const filteredAccurateData = accurateData.filter((item) => {
     const matchesSearch =
-      item.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.camera_name.toLowerCase().includes(searchQuery.toLowerCase());
+      item.image_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.image_url.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesSearch;
   });
 
   const filteredFalsePositiveData = falsePositiveData.filter((item) => {
     const matchesSearch =
-      item.alert_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.user_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.camera_name.toLowerCase().includes(searchQuery.toLowerCase());
+      item.image_type.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      item.image_url.toLowerCase().includes(searchQuery.toLowerCase());
 
     return matchesSearch;
   });
@@ -213,7 +193,7 @@ const AdminTraining = () => {
 
   const handleDelete = async () => {
     try {
-      await alertsService.deleteTrainingData(itemsToDelete);
+      await trainService.deleteTrainingData(itemsToDelete);
       await fetchTrainingData();
       setSelectedAccurateItems([]);
       setSelectedFalsePositiveItems([]);
@@ -228,27 +208,6 @@ const AdminTraining = () => {
     setDeleteDialogOpen(true);
   };
 
-  const handleExtractFrames = async (isAccurate: boolean) => {
-    const items = isAccurate ? selectedAccurateItems : selectedFalsePositiveItems;
-    if (items.length === 0) {
-      toast({
-        title: "No items selected",
-        description: "Please select videos to extract frames from.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await alertsService.extractFrames(items, selectedTab);
-      toast({
-        title: "Frames Extracted",
-        description: `Frames have been extracted from ${items.length} videos.`,
-      });
-    } catch (error) {
-      console.error("Failed to extract frames:", error);
-    }
-  };
 
   const handleSaveData = async (isAccurate: boolean) => {
     const items = isAccurate ? selectedAccurateItems : selectedFalsePositiveItems;
@@ -262,7 +221,7 @@ const AdminTraining = () => {
     }
 
     try {
-      await alertsService.saveTrainingData(items, selectedTab);
+      await trainService.saveTrainingData(items, selectedTab);
       toast({
         title: "Data Saved",
         description: `${items.length} training data items have been saved.`,
@@ -274,7 +233,7 @@ const AdminTraining = () => {
 
   const handleTrainModel = async () => {
     try {
-      await alertsService.trainModel(selectedTab);
+      await trainService.trainModel(selectedTab);
       // Update training results after initiating training
       setTimeout(fetchTrainingResults, 2000);
     } catch (error) {
@@ -383,15 +342,7 @@ const AdminTraining = () => {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={selectedAccurateItems.length === 0}
-                    onClick={() => handleExtractFrames(true)}
-                  >
-                    <Image className="mr-2 h-4 w-4" />
-                    Extract Frames
-                  </Button>
+                  
                   <Button
                     size="sm"
                     variant="outline"
@@ -418,11 +369,9 @@ const AdminTraining = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-12"></TableHead>
-                        <TableHead className="w-24">Thumbnail</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>User</TableHead>
-                        <TableHead>Camera</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead className="w-24">Image</TableHead>
+                        <TableHead>Image URL</TableHead>
+                        <TableHead>Type</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -440,16 +389,16 @@ const AdminTraining = () => {
                           </TableCell>
                           <TableCell>
                             <img
-                              src={`http://api.secondkeeper.com${item.thumbnail}`}
-                              alt={item.alert_type}
+                              src={`https://api.secondkeeper.com/media/${item.image_url}`}
+                              alt={item.image_type}
                               className="w-16 h-16 object-cover rounded"
                             />
                           </TableCell>
-                          <TableCell>{formatDate(item.detection_time)}</TableCell>
-                          <TableCell>{item.user_email}</TableCell>
-                          <TableCell>{item.camera.name}</TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            <span className="text-xs">{item.image_url}</span>
+                          </TableCell>
                           <TableCell>
-                            <Badge className="bg-green-500">Accurate Detection</Badge>
+                            <Badge className="bg-green-500">{item.image_type}</Badge>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -492,15 +441,7 @@ const AdminTraining = () => {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={selectedFalsePositiveItems.length === 0}
-                    onClick={() => handleExtractFrames(false)}
-                  >
-                    <Image className="mr-2 h-4 w-4" />
-                    Extract Frames
-                  </Button>
+                  
                   <Button
                     size="sm"
                     variant="outline"
@@ -527,11 +468,9 @@ const AdminTraining = () => {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-12"></TableHead>
-                        <TableHead className="w-24">Thumbnail</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>User</TableHead>
-                        <TableHead>Camera</TableHead>
-                        <TableHead>Status</TableHead>
+                        <TableHead className="w-24">Image</TableHead>
+                        <TableHead>Image URL</TableHead>
+                        <TableHead>Type</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -549,16 +488,16 @@ const AdminTraining = () => {
                           </TableCell>
                           <TableCell>
                             <img
-                              src={`http://api.secondkeeper.com${item.thumbnail}`}
-                              alt={item.alert_type}
+                              src={`https://api.secondkeeper.com/media/${item.image_url}`}
+                              alt={item.image_type}
                               className="w-16 h-16 object-cover rounded"
                             />
                           </TableCell>
-                          <TableCell>{formatDate(item.detection_time)}</TableCell>
-                          <TableCell>{item.user_email}</TableCell>
-                          <TableCell>{item.camera.name}</TableCell>
+                          <TableCell className="max-w-xs truncate">
+                            <span className="text-xs">{item.image_url}</span>
+                          </TableCell>
                           <TableCell>
-                            <Badge variant="destructive">False Positive</Badge>
+                            <Badge variant="destructive">{item.image_type}</Badge>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -681,7 +620,6 @@ const AdminTraining = () => {
         onOpenChange={setImageModalOpen}
         imageUrl={currentImage}
         title={currentAlertType}
-        metadata={currentImageMetadata}
       />
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
