@@ -14,8 +14,15 @@ import {
 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { trainService, TrainingData as TrainingDataType } from "@/lib/api/trainService";
+import { TrainingData as TrainingDataType } from "@/lib/api/trainService";
 import { toast } from "@/hooks/use-toast";
+import {
+  useTrainingData,
+  useTrainingResults,
+  useDeleteTrainingData,
+  useSaveTrainingData,
+  useTrainModel
+} from "@/hooks/useTraining";
 import ImageViewModal from "./ImageViewModal";
 import {
   AlertDialog,
@@ -80,20 +87,29 @@ const AdminTraining = () => {
   const [selectedTab, setSelectedTab] = useState<keyof typeof alertTypeLabels>("fire_smoke");
   const [selectedAccurateItems, setSelectedAccurateItems] = useState<string[]>([]);
   const [selectedFalsePositiveItems, setSelectedFalsePositiveItems] = useState<string[]>([]);
-  const [trainingData, setTrainingData] = useState<TrainingData[]>([]);
   const [currentAlertType, setCurrentAlertType] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [itemsToDelete, setItemsToDelete] = useState<string[]>([]);
-  const [trainingResults, setTrainingResults] = useState<Record<string, TrainingResults>>({});
   const [imageModalOpen, setImageModalOpen] = useState(false);
   const [currentImage, setCurrentImage] = useState("");
   const [accurateCurrentPage, setAccurateCurrentPage] = useState(1);
   const [falsePositiveCurrentPage, setFalsePositiveCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
+  // React Query hooks
+  const { data: rawTrainingData = [] } = useTrainingData(selectedTab);
+  const { data: trainingResults = {} } = useTrainingResults();
+  const deleteTrainingDataMutation = useDeleteTrainingData();
+  const saveTrainingDataMutation = useSaveTrainingData();
+  const trainModelMutation = useTrainModel();
+
+  // Add id to training data items for UI purposes
+  const trainingData: TrainingData[] = rawTrainingData.map((item, index) => ({
+    ...item,
+    id: `${item.image_type}-${item.image_url}-${index}`,
+  }));
+
   useEffect(() => {
-    fetchTrainingData();
-    fetchTrainingResults();
     setAccurateCurrentPage(1);
     setFalsePositiveCurrentPage(1);
   }, [selectedTab]);
@@ -102,24 +118,6 @@ const AdminTraining = () => {
     setAccurateCurrentPage(1);
     setFalsePositiveCurrentPage(1);
   }, [searchQuery]);
-
-  const fetchTrainingData = async () => {
-    try {
-      const data = await trainService.getTrainingData(selectedTab);
-      setTrainingData(data as TrainingData[]);
-    } catch (error) {
-      console.error("Failed to fetch training data:", error);
-    }
-  };
-
-  const fetchTrainingResults = async () => {
-    try {
-      const results = await trainService.getTrainingResults();
-      setTrainingResults(results);
-    } catch (error) {
-      console.error("Failed to fetch training results:", error);
-    }
-  };
 
 
   const handleViewImage = (item: TrainingData) => {
@@ -193,11 +191,20 @@ const AdminTraining = () => {
 
   const handleDelete = async () => {
     try {
-      await trainService.deleteTrainingData(itemsToDelete);
-      await fetchTrainingData();
+      // Convert UI IDs back to actual training data identifiers
+      const actualIds = itemsToDelete.map(uiId => {
+        const item = trainingData.find(data => data.id === uiId);
+        return item ? item.image_url : uiId;
+      });
+      
+      await deleteTrainingDataMutation.mutateAsync({ 
+        alertIds: actualIds, 
+        alertType: selectedTab 
+      });
       setSelectedAccurateItems([]);
       setSelectedFalsePositiveItems([]);
       setDeleteDialogOpen(false);
+      setItemsToDelete([]);
     } catch (error) {
       console.error("Failed to delete items:", error);
     }
@@ -221,11 +228,18 @@ const AdminTraining = () => {
     }
 
     try {
-      await trainService.saveTrainingData(items, selectedTab);
-      toast({
-        title: "Data Saved",
-        description: `${items.length} training data items have been saved.`,
+      // Convert UI IDs back to actual training data identifiers
+      const actualIds = items.map(uiId => {
+        const item = trainingData.find(data => data.id === uiId);
+        return item ? item.image_url : uiId;
       });
+      
+      await saveTrainingDataMutation.mutateAsync({ alertIds: actualIds, alertType: selectedTab });
+      if (isAccurate) {
+        setSelectedAccurateItems([]);
+      } else {
+        setSelectedFalsePositiveItems([]);
+      }
     } catch (error) {
       console.error("Failed to save data:", error);
     }
@@ -233,9 +247,7 @@ const AdminTraining = () => {
 
   const handleTrainModel = async () => {
     try {
-      await trainService.trainModel(selectedTab);
-      // Update training results after initiating training
-      setTimeout(fetchTrainingResults, 2000);
+      await trainModelMutation.mutateAsync(selectedTab);
     } catch (error) {
       console.error("Failed to start training:", error);
     }
@@ -404,7 +416,7 @@ const AdminTraining = () => {
                       ))}
                       {filteredAccurateData.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8">
+                          <TableCell colSpan={4} className="text-center py-8">
                             <div className="text-muted-foreground">
                               No accurate detection data found.
                             </div>
@@ -503,7 +515,7 @@ const AdminTraining = () => {
                       ))}
                       {filteredFalsePositiveData.length === 0 && (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-8">
+                          <TableCell colSpan={4} className="text-center py-8">
                             <div className="text-muted-foreground">
                               No false positive data found.
                             </div>
@@ -522,7 +534,7 @@ const AdminTraining = () => {
               <Button
                 size="lg"
                 onClick={handleTrainModel}
-                disabled={accurateData.length === 0 && falsePositiveData.length === 0}
+                disabled={accurateData.length === 0 && falsePositiveData.length === 0 || trainModelMutation.isPending}
               >
                 <Brain className="mr-2 h-5 w-5" />
                 Start {alertTypeLabels[alertType as keyof typeof alertTypeLabels]} Model Training
@@ -633,7 +645,9 @@ const AdminTraining = () => {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            <AlertDialogAction onClick={handleDelete} disabled={deleteTrainingDataMutation.isPending}>
+              {deleteTrainingDataMutation.isPending ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

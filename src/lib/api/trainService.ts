@@ -24,9 +24,12 @@ export const trainService = {
     }
   },
 
-  deleteTrainingData: async (alertIds: string[]): Promise<void> => {
+  deleteTrainingData: async (alertIds: string[], alertType: string): Promise<void> => {
     try {
-      await apiClient.post("/alerts/training/delete/", { alert_ids: alertIds });
+      await apiClient.post("/alerts/training/delete/", { 
+        alert_ids: alertIds,
+        alert_type: alertType
+      });
       
       toast({
         title: "Success",
