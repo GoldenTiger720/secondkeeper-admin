@@ -2,6 +2,7 @@ import apiClient from "./axiosConfig";
 import { toast } from "@/hooks/use-toast";
 
 export interface TrainingData {
+  id: number;
   image_type: string;
   image_url: string;
 }
@@ -12,6 +13,7 @@ export const trainService = {
     try {
       const url = alertType ? `/alerts/training/?alert_type=${alertType}` : "/alerts/training/";
       const response = await apiClient.get(url);
+      console.log("Training data response:", response.data.data);
       return response.data.data;
     } catch (error) {
       console.error("Error fetching training data:", error);
@@ -24,17 +26,16 @@ export const trainService = {
     }
   },
 
-  deleteTrainingData: async (alertIds: string[], alertType: string): Promise<void> => {
+  deleteTrainingData: async (alertIds: number[], alertType: string): Promise<void> => {
     try {
-      await apiClient.post("/alerts/training/delete/", { 
+      const requestData = { 
         alert_ids: alertIds,
         alert_type: alertType
-      });
+      };
       
-      toast({
-        title: "Success",
-        description: `${alertIds.length} training data items deleted successfully.`,
-      });
+      console.log("Delete request data:", requestData);
+      
+      await apiClient.post("/alerts/training/delete/", requestData);
     } catch (error) {
       console.error("Error deleting training data:", error);
       toast({
@@ -46,7 +47,7 @@ export const trainService = {
     }
   },
 
-  extractFrames: async (alertIds: string[], alertType: string): Promise<void> => {
+  extractFrames: async (alertIds: number[], alertType: string): Promise<void> => {
     try {
       await apiClient.post("/alerts/training/extract-frames/", { 
         alert_ids: alertIds,
@@ -68,7 +69,7 @@ export const trainService = {
     }
   },
 
-  saveTrainingData: async (alertIds: string[], alertType: string): Promise<void> => {
+  saveTrainingData: async (alertIds: number[], alertType: string): Promise<void> => {
     try {
       await apiClient.post("/alerts/training/save/", { 
         alert_ids: alertIds,

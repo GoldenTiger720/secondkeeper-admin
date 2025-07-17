@@ -29,28 +29,49 @@ export const useTrainingResults = (alertType?: string) => {
   });
 };
 
-// Hook for deleting training data with proper backend waiting
+// Hook for deleting training data with optimistic updates
 export const useDeleteTrainingData = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ alertIds, alertType }: { alertIds: string[], alertType: string }) => 
+    mutationFn: ({ alertIds, alertType }: { alertIds: number[], alertType: string }) => 
       trainService.deleteTrainingData(alertIds, alertType),
-    onSuccess: (_, { alertIds }) => {
-      toast({
-        title: "Success",
-        description: `${alertIds.length} training data items deleted successfully.`,
+    onMutate: async ({ alertIds, alertType }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: TRAINING_KEYS.byAlertType(alertType) });
+      
+      // Snapshot the previous value
+      const previousData = queryClient.getQueryData(TRAINING_KEYS.byAlertType(alertType));
+      
+      // Optimistically update by removing the deleted items
+      queryClient.setQueryData(TRAINING_KEYS.byAlertType(alertType), (old: any[]) => {
+        if (!old) return old;
+        return old.filter((item: any) => !alertIds.includes(item.id));
       });
-      // Invalidate all training queries to refetch fresh data
-      queryClient.invalidateQueries({ queryKey: TRAINING_KEYS.all });
+
+      // Show optimistic success toast
+      toast({
+        title: "Training Data Deleted",
+        description: `${alertIds.length} training data items have been deleted successfully.`,
+      });
+
+      return { previousData };
     },
-    onError: (error) => {
+    onError: (error, { alertIds, alertType }, context) => {
+      // If the mutation fails, use the context returned from onMutate to roll back
+      if (context?.previousData) {
+        queryClient.setQueryData(TRAINING_KEYS.byAlertType(alertType), context.previousData);
+      }
       toast({
         title: "Error",
         description: "Failed to delete training data. Please try again.",
         variant: "destructive",
       });
       console.error("Delete training data error:", error);
+    },
+    onSettled: (_, __, { alertType }) => {
+      // Always refetch after error or success
+      queryClient.invalidateQueries({ queryKey: TRAINING_KEYS.byAlertType(alertType) });
     },
   });
 };
@@ -60,7 +81,7 @@ export const useExtractFrames = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ alertIds, alertType }: { alertIds: string[], alertType: string }) => 
+    mutationFn: ({ alertIds, alertType }: { alertIds: number[], alertType: string }) => 
       trainService.extractFrames(alertIds, alertType),
     onSuccess: () => {
       toast({
@@ -85,7 +106,7 @@ export const useSaveTrainingData = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ alertIds, alertType }: { alertIds: string[], alertType: string }) => 
+    mutationFn: ({ alertIds, alertType }: { alertIds: number[], alertType: string }) => 
       trainService.saveTrainingData(alertIds, alertType),
     onSuccess: () => {
       toast({

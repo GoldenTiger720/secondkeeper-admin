@@ -50,6 +50,7 @@ import {
   PaginationNext,
   PaginationPrevious,
 } from "@/components/ui/pagination";
+import { Progress } from "@/components/ui/progress";
 
 const formatDate = (dateString: string) => {
   const date = new Date(dateString);
@@ -61,19 +62,7 @@ const formatDate = (dateString: string) => {
   }).format(date);
 };
 
-interface TrainingData extends TrainingDataType {
-  id: string;
-}
-
-interface TrainingResults {
-  accuracy: number;
-  precision: number;
-  recall: number;
-  f1Score: number;
-  lastTrainingDate: string;
-  totalSamples: number;
-  trainingStatus: "idle" | "training" | "completed" | "failed";
-}
+type TrainingData = TrainingDataType;
 
 const alertTypeLabels = {
   fire_smoke: "Fire & Smoke",
@@ -94,6 +83,8 @@ const AdminTraining = () => {
   const [currentImage, setCurrentImage] = useState("");
   const [accurateCurrentPage, setAccurateCurrentPage] = useState(1);
   const [falsePositiveCurrentPage, setFalsePositiveCurrentPage] = useState(1);
+  const [deleteProgress, setDeleteProgress] = useState({ current: 0, total: 0 });
+  const [isDeleting, setIsDeleting] = useState(false);
   const itemsPerPage = 10;
 
   // React Query hooks
@@ -103,11 +94,8 @@ const AdminTraining = () => {
   const saveTrainingDataMutation = useSaveTrainingData();
   const trainModelMutation = useTrainModel();
 
-  // Add id to training data items for UI purposes
-  const trainingData: TrainingData[] = rawTrainingData.map((item, index) => ({
-    ...item,
-    id: `${item.image_type}-${item.image_url}-${index}`,
-  }));
+  // Use the training data directly since it now includes database IDs
+  const trainingData: TrainingData[] = rawTrainingData;
 
   useEffect(() => {
     setAccurateCurrentPage(1);
@@ -161,15 +149,17 @@ const AdminTraining = () => {
   const falsePositiveEndIndex = falsePositiveStartIndex + itemsPerPage;
   const paginatedFalsePositiveData = filteredFalsePositiveData.slice(falsePositiveStartIndex, falsePositiveEndIndex);
 
-  const toggleSelectAccurateItem = (id: string) => {
+  const toggleSelectAccurateItem = (id: number) => {
+    const idString = id.toString();
     setSelectedAccurateItems((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(idString) ? prev.filter((item) => item !== idString) : [...prev, idString]
     );
   };
 
-  const toggleSelectFalsePositiveItem = (id: string) => {
+  const toggleSelectFalsePositiveItem = (id: number) => {
+    const idString = id.toString();
     setSelectedFalsePositiveItems((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      prev.includes(idString) ? prev.filter((item) => item !== idString) : [...prev, idString]
     );
   };
 
@@ -177,7 +167,7 @@ const AdminTraining = () => {
     if (selectedAccurateItems.length === filteredAccurateData.length) {
       setSelectedAccurateItems([]);
     } else {
-      setSelectedAccurateItems(filteredAccurateData.map((item) => item.id));
+      setSelectedAccurateItems(filteredAccurateData.map((item) => item.id.toString()));
     }
   };
 
@@ -185,29 +175,48 @@ const AdminTraining = () => {
     if (selectedFalsePositiveItems.length === filteredFalsePositiveData.length) {
       setSelectedFalsePositiveItems([]);
     } else {
-      setSelectedFalsePositiveItems(filteredFalsePositiveData.map((item) => item.id));
+      setSelectedFalsePositiveItems(filteredFalsePositiveData.map((item) => item.id.toString()));
     }
   };
 
   const handleDelete = async () => {
-    try {
-      // Convert UI IDs back to actual training data identifiers
-      const actualIds = itemsToDelete.map(uiId => {
-        const item = trainingData.find(data => data.id === uiId);
-        return item ? item.image_url : uiId;
-      });
-      
-      await deleteTrainingDataMutation.mutateAsync({ 
-        alertIds: actualIds, 
-        alertType: selectedTab 
-      });
+    // Convert UI IDs (strings) back to database IDs (numbers)
+    const actualIds = itemsToDelete.map(uiId => {
+      const item = trainingData.find(data => data.id.toString() === uiId);
+      return item ? item.id : parseInt(uiId);
+    });
+    
+    setIsDeleting(true);
+    setDeleteProgress({ current: 0, total: actualIds.length });
+    setDeleteDialogOpen(false);
+    
+    // Simulate progress for better UX
+    setTimeout(() => {
+      setDeleteProgress({ current: 1, total: actualIds.length });
+    }, 200);
+    
+    // Execute optimistic deletion
+    deleteTrainingDataMutation.mutate({ 
+      alertIds: actualIds, 
+      alertType: selectedTab 
+    });
+    
+    // Simulate progressive deletion for better UX
+    const progressInterval = 150; // milliseconds per item
+    for (let i = 0; i < actualIds.length; i++) {
+      setTimeout(() => {
+        setDeleteProgress({ current: i + 1, total: actualIds.length });
+      }, (i + 1) * progressInterval);
+    }
+
+    // Complete after all progress steps
+    setTimeout(() => {
       setSelectedAccurateItems([]);
       setSelectedFalsePositiveItems([]);
-      setDeleteDialogOpen(false);
       setItemsToDelete([]);
-    } catch (error) {
-      console.error("Failed to delete items:", error);
-    }
+      setIsDeleting(false);
+      setDeleteProgress({ current: 0, total: 0 });
+    }, actualIds.length * progressInterval + 300);
   };
 
   const openDeleteDialog = (items: string[]) => {
@@ -228,10 +237,10 @@ const AdminTraining = () => {
     }
 
     try {
-      // Convert UI IDs back to actual training data identifiers
+      // Convert UI IDs (strings) back to database IDs (numbers)
       const actualIds = items.map(uiId => {
-        const item = trainingData.find(data => data.id === uiId);
-        return item ? item.image_url : uiId;
+        const item = trainingData.find(data => data.id.toString() === uiId);
+        return item ? item.id : parseInt(uiId);
       });
       
       await saveTrainingDataMutation.mutateAsync({ alertIds: actualIds, alertType: selectedTab });
@@ -395,7 +404,7 @@ const AdminTraining = () => {
                         >
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
-                              checked={selectedAccurateItems.includes(item.id)}
+                              checked={selectedAccurateItems.includes(item.id.toString())}
                               onCheckedChange={() => toggleSelectAccurateItem(item.id)}
                             />
                           </TableCell>
@@ -494,7 +503,7 @@ const AdminTraining = () => {
                         >
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <Checkbox
-                              checked={selectedFalsePositiveItems.includes(item.id)}
+                              checked={selectedFalsePositiveItems.includes(item.id.toString())}
                               onCheckedChange={() => toggleSelectFalsePositiveItem(item.id)}
                             />
                           </TableCell>
@@ -651,6 +660,29 @@ const AdminTraining = () => {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Loading Overlay */}
+      {isDeleting && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-background border rounded-lg p-6 shadow-lg max-w-md w-full mx-4">
+            <div className="text-center space-y-4">
+              <div className="text-lg font-semibold">
+                {deleteProgress.total === 1 ? 'Deleting Training Data...' : 'Deleting Training Data...'}
+              </div>
+              <Progress 
+                className="w-full" 
+                value={deleteProgress.total > 0 ? (deleteProgress.current / deleteProgress.total) * 100 : 0}
+              />
+              <div className="text-sm text-muted-foreground">
+                {deleteProgress.total === 1 
+                  ? 'Please wait while we process your request'
+                  : `Processing ${deleteProgress.current} of ${deleteProgress.total} items`
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
