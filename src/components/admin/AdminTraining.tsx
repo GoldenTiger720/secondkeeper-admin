@@ -363,16 +363,6 @@ const AdminTraining = () => {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={selectedAccurateItems.length === 0}
-                    onClick={() => handleSaveData(true)}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
                   <Button
                     size="sm"
                     variant="destructive"
@@ -462,16 +452,6 @@ const AdminTraining = () => {
                   </div>
                 </div>
                 <div className="flex gap-2 mt-4">
-                  
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={selectedFalsePositiveItems.length === 0}
-                    onClick={() => handleSaveData(false)}
-                  >
-                    <Save className="mr-2 h-4 w-4" />
-                    Save
-                  </Button>
                   <Button
                     size="sm"
                     variant="destructive"
